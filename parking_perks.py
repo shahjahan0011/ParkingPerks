@@ -2,478 +2,471 @@
 # PARKING PERKS — Monthly Qualifier Report
 # =============================================================================
 #
-# WHAT THIS SCRIPT DOES IN PLAIN ENGLISH:
-#   1. Reads three files: plate camera reads, payment records, citations
-#   2. Finds plates that visited campus 10+ times, each stay over 1 hour
-#   3. Keeps only plates that paid (or hold a permit)
-#   4. Removes plates that got a citation
-#   5. Writes the winners to a formatted Excel report
+# WHAT THIS SCRIPT DOES:
+#   1. Reads three files: plate camera reads, payments, citations
+#   2. Finds plates that visited campus on 10+ separate days,
+#      each stay lasting more than 1 hour (first read to last read that day)
+#   3. Keeps only plates that have a valid payment or permit on file
+#   4. Removes any plate that received a citation that month
+#   5. Writes a formatted Excel report with the qualifying plates
 #
-# HOW TO RUN IT:
+# HOW TO RUN IT (full month):
 #   python parking_perks.py \
-#     --reads   "April_Plate_Reads.xlsx" \
-#     --payments "April_Payments.csv" \
+#     --reads     "April_Plate_Reads.xlsx" \
+#     --payments  "April_Payments.csv" \
 #     --citations "Citations_April.xls" \
-#     --output  "Parking_Perks_April_2026.xlsx"
+#     --output    "Parking_Perks_April_2026.xlsx"
 #
-#   Add --permits "Active_Permits.csv" once you have that file.
-#   Use --min-visits 4 for testing with partial data.
+# HOW TO RUN IT (testing with partial data):
+#   python parking_perks.py \
+#     --reads     "April_Plate_Reads.xlsx" \
+#     --payments  "April_Payments.csv" \
+#     --citations "Citations_April.xls" \
+#     --min-visits 4 \
+#     --output    "Parking_Perks_TEST.xlsx"
+#
+# ADDING PERMITS (when available):
+#   python parking_perks.py \
+#     --reads     "April_Plate_Reads.xlsx" \
+#     --payments  "April_Payments.csv" \
+#     --citations "Citations_April.xls" \
+#     --permits   "Active_Permits.csv" \
+#     --output    "Parking_Perks_April_2026.xlsx"
+#
+# REQUIREMENTS:
+#   pip install pandas openpyxl xlrd
 # =============================================================================
 
-
-# -----------------------------------------------------------------------------
-# IMPORTS — what libraries we need and why
-# -----------------------------------------------------------------------------
-
-import argparse     # reads the flags you type after "python parking_perks.py"
-import os           # lets us work with file paths (e.g. strip the extension)
-from datetime import datetime  # used to stamp the report with today's date
+import argparse
+import os
+from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
-# pandas is the core data library. Think of it like Excel in Python.
-# A "DataFrame" (df) is just a table with rows and columns.
-# We use it to load files, filter rows, join tables, and do calculations.
-
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-# openpyxl creates and styles Excel files.
-# pandas can write Excel too, but openpyxl gives us control over colours,
-# fonts, borders, and merged cells — everything needed for a nice report.
 
 
 # =============================================================================
-# SECTION 1: PLATE NORMALISATION
+# SECTION 1 — PLATE NORMALISATION
 # =============================================================================
 #
-# THE PROBLEM:
-#   The same physical licence plate is stored differently in each file:
+# Each file stores the same physical plate number in a different format.
+# We write one small function per file so each only does exactly what
+# that file needs — nothing more. This was the root cause of the SK041H
+# bug: one shared function tried to strip province codes everywhere, which
+# accidentally removed "SK" from a plate that genuinely starts with SK.
 #
-#   Plate reads file:   SK041H          <- bare plate, exactly as on the car
-#   Payments file:      ="SK041H"       <- Excel wraps it in ="" to prevent
-#                                          the app treating it as a formula
-#   Citations file:     SK-SK041H-NA   <- system adds province prefix and
-#                                          a "-NA" suffix
-#
-#   If we try to match these as-is, "SK041H" != "="SK041H"" != "SK-SK041H-NA"
-#   even though they're the same car. We need to clean each one to "SK041H".
-#
-# THE FIX — file-specific functions:
-#   Rather than one function that tries to handle all three formats (which
-#   caused the SK041H bug — it saw "SK" and stripped it thinking it was a
-#   province code), we write one small function per file. Each function only
-#   does the exact transformation that file needs. Nothing more.
-# -----------------------------------------------------------------------------
+# Plate reads file:  SK041H          (already clean, just uppercase + trim)
+# Payments file:     ="SK041H"       (Excel formula wrapper, strip it off)
+# Citations file:    SK-SK041H-NA    (PROVINCE-PLATE-SUFFIX, extract middle)
+# =============================================================================
 
 def normalise_reads_plate(raw) -> str:
     """
-    Plate reads file — plates are already clean. We just standardise the
-    format (uppercase, no stray spaces).
+    Plate reads are already clean — just standardise case and whitespace.
 
-    pd.isna() checks for missing/blank values (NaN = Not a Number, which
-    is what pandas uses for empty cells). We return "" so the caller can
-    easily filter these out.
+    pd.isna() catches empty cells (pandas stores them as NaN = Not a Number).
+    We return "" so callers can filter these rows out with  df[df["plate"] != ""]
     """
     if pd.isna(raw):
         return ""
-    # str() converts whatever type pandas read it as into text
-    # .strip() removes leading/trailing spaces: "  SK041H  " -> "SK041H"
-    # .upper() makes it uppercase so "sk041h" == "SK041H"
     return str(raw).strip().upper()
 
 
 def normalise_payments_plate(raw) -> str:
     """
-    Payments file — plates are wrapped in Excel formula syntax: ="SK041H"
-    We only need to strip the =" from the front and the " from the back.
+    Payments plates are wrapped in an Excel formula-quoting syntax: ="SK041H"
+    We strip the leading =" and the trailing " — nothing else.
 
-    lstrip('="') removes any leading = or " characters (left side only).
-    rstrip('"')  removes any trailing " characters (right side only).
-
-    Why NOT strip province codes here? Because the payments file contains
-    real plates like "SK041H" where SK is part of the plate — not a province
-    prefix. The payments file never adds province prefixes.
+    Why lstrip/rstrip instead of a simple replace?
+    lstrip('="') removes any combination of = and " from the LEFT end only.
+    rstrip('"')  removes " from the RIGHT end only.
+    This avoids accidentally removing characters from the middle of a plate.
     """
     if pd.isna(raw):
         return ""
     s = str(raw).strip().upper()
-    s = s.lstrip('="').rstrip('"')
-    return s
+    if s.startswith('="') and s.endswith('"'):
+        return s[2:-1]          # slice off first two and last one character
+    return s.lstrip('="').rstrip('"')
 
 
 def normalise_citations_plate(raw) -> str:
     """
-    Citations file — plates follow the format:  PROVINCE-PLATE-SUFFIX
-    Examples:  BC-SK041H-NA   AB-XR099L-NA   SK-SK041H-NA
+    Citations plates follow the format:  PROVINCE-PLATE-SUFFIX
+    Examples:  BC-SK041H-NA    AB-XR099L-NA    SK-SK041H-NA
 
-    The province prefix and -NA suffix are added by the citation system.
-    We want ONLY the middle part — the actual plate number.
-
-    How it works:
-      "BC-SK041H-NA".split("-")  ->  ["BC", "SK041H", "NA"]
-                                               ^ index [1] = what we want
+    We split on "-" and take the middle segment (index 1).
 
     Edge cases handled:
-      - "License #"  -> the citation export reprints its own header every
-                        page. We return "" to filter these out.
-      - Blank plates -> "BC-  -NA" after splitting gives ["BC","  ","NA"].
-                        We strip and check — if the middle is empty, skip it.
-      - Non-NA suffixes -> "BC-XE115F-BIKE" still works because we always
-                           take index [1] regardless of what index [2] is.
-      - Rows with no dashes -> malformed data. We return "" to skip them.
+      "LICENSE #"      — the export reprints its column header every page.
+                         Return "" to filter it out.
+      "BC-  -NA"       — blank plate in the middle. Return "" to skip.
+      "BC-XE115F-BIKE" — non-standard suffix. Still works: we always take [1].
+      "BC-SK-041H-NA"  — 4 parts instead of 3. Join the middle segments.
+      Anything else    — malformed. Return "" to skip safely.
     """
     if pd.isna(raw):
         return ""
 
-    s = str(raw).strip()
+    s = str(raw).strip().upper()
 
-    # Filter out the header rows that got mixed into the data
-    if s == "License #":
+    if not s or s == "LICENSE #":
         return ""
 
-    parts = s.split("-")
+    parts = [p.strip() for p in s.split("-")]
 
-    # We expect exactly 3 parts: province, plate, suffix
-    # If there aren't 3, the data is malformed — skip it
-    if len(parts) != 3:
-        return ""
+    if len(parts) == 3:
+        return parts[1]                         # normal case: take middle
 
-    # parts[1] is the middle segment — the actual plate number
-    plate = parts[1].strip().upper()
+    if len(parts) > 3:
+        return "".join(parts[1:-1])             # join everything between first and last
 
-    # If the middle part is blank (e.g. "BC-  -NA"), skip it
-    if not plate:
-        return ""
+    if len(parts) == 1:
+        return parts[0]                         # already a bare plate, use as-is
 
-    return plate
+    return ""                                   # anything else: skip
 
 
 # =============================================================================
-# SECTION 2: FILE LOADERS
+# SECTION 2 — FILE UTILITY HELPERS
 # =============================================================================
 #
-# Each loader is responsible for one file. It reads the raw file, cleans it,
-# and returns a tidy DataFrame with only the columns we actually need.
+# Small reusable functions that don't belong to any one file format.
+# Keeping them here means the loaders below stay focused and readable.
+# =============================================================================
+
+def excel_engine_for(path: str) -> str | None:
+    """
+    Returns the right pandas engine for the given file extension.
+
+    .xls  (old Excel format) needs xlrd   — openpyxl can't read it.
+    .xlsx (new Excel format) needs openpyxl — xlrd can't read it.
+
+    Path(path).suffix gives us the file extension including the dot.
+    .lower() handles "FILE.XLS" the same as "file.xls".
+    """
+    suffix = Path(path).suffix.lower()
+    if suffix == ".xls":
+        return "xlrd"
+    if suffix == ".xlsx":
+        return "openpyxl"
+    return None
+
+
+def find_column(df: pd.DataFrame, keywords: list[str]) -> str | None:
+    """
+    Finds the first column whose name contains any of the given keywords
+    (case-insensitive). Returns None if nothing matches.
+
+    Why this instead of df["License Plate"]?
+    Column names sometimes change slightly between exports — "License Plate"
+    vs "Licence Plate" vs "LicensePlate". This lets us find the right column
+    regardless of minor naming differences.
+
+    Example:
+        find_column(df, ["license plate", "licence plate", "plate"])
+        # returns "License Plate" if that column exists
+    """
+    return next(
+        (col for col in df.columns
+         if any(k in str(col).lower() for k in keywords)),
+        None
+    )
+
+
+def require_columns(df: pd.DataFrame, required: list[str], file_label: str) -> None:
+    """
+    Raises a clear ValueError if any expected columns are missing.
+
+    Without this, a missing column produces a confusing KeyError deep inside
+    the code. This surfaces the problem immediately with a useful message.
+    """
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(
+            f"{file_label} is missing column(s): {missing}\n"
+            f"Available columns: {list(df.columns)}"
+        )
+
+
+# =============================================================================
+# SECTION 3 — FILE LOADERS
+# =============================================================================
 #
-# WHY SEPARATE FUNCTIONS?
-#   Because each file has a different format quirk. Separating them means
-#   if the citations file changes its format next month, you only touch
-#   load_citations() — nothing else breaks.
+# One function per file. Each one:
+#   1. Reads the raw file into a DataFrame
+#   2. Handles that file's specific format quirks (header rows, engines, etc.)
+#   3. Normalises the plate column using the file-specific function above
+#   4. Returns a minimal, clean DataFrame with only the columns we need
+#
+# Keeping loaders separate means a format change next month only touches
+# one function — nothing else in the script breaks.
 # =============================================================================
 
 def load_plate_reads(path: str) -> pd.DataFrame:
     """
     Loads the plate reads XLSX.
 
-    FORMAT QUIRK: The first row of this file is a report timestamp
-    ("Report created: FRI MAY 8 2026..."). The actual column headers
-    are on row 2. So we tell pandas to use row index 1 as the header
-    with header=1. (Pandas counts from 0, so index 1 = second row.)
+    FORMAT QUIRK: Row 1 is a report timestamp ("Report created: ...").
+    The real column headers are on row 2 (index 1 in zero-based counting).
+    header=1 tells pandas to treat row 2 as the header row.
     """
     df = pd.read_excel(path, header=1)
-
-    # .str.strip() on column names removes any invisible spaces that might
-    # have crept in — otherwise "Plate number " != "Plate number"
     df.columns = df.columns.str.strip()
 
-    # Rename to shorter, consistent names so the rest of the code is readable
     df = df.rename(columns={
         "Local time (PDT)": "local_time",
         "Plate number":     "plate_raw",
     })
 
-    # Apply our reads-specific normalisation to every plate value.
-    # .apply(func) runs the function on each value in the column one by one.
-    df["plate"] = df["plate_raw"].apply(normalise_reads_plate)
+    require_columns(df, ["local_time", "plate_raw"], "Plate reads file")
 
-    # Remove rows where the plate came back empty (missing data, "-" entries)
+    df["plate"] = df["plate_raw"].apply(normalise_reads_plate)
     df = df[df["plate"] != ""]
 
-    # Parse the timestamp string into a real datetime object.
-    # format= tells pandas exactly how to interpret the string.
-    # %m=month %d=day %Y=4-digit year %I=12hr hour %M=minute %S=second %p=AM/PM
-    # errors="coerce" means: if a value can't be parsed, set it to NaT
-    # (Not a Time) instead of crashing the whole script.
+    # Parse the timestamp string into a real Python datetime.
+    # format= tells pandas the exact structure of the string.
+    # errors="coerce" turns any unparseable value into NaT (Not a Time)
+    # instead of crashing — we then drop those rows below.
     df["local_time"] = pd.to_datetime(
         df["local_time"],
         format="%m/%d/%Y, %I:%M:%S %p",
-        errors="coerce"
+        errors="coerce",
     )
-
-    # Drop rows where the timestamp couldn't be parsed (NaT values)
-    # subset= means "only look at this column when deciding what to drop"
     df = df.dropna(subset=["local_time"])
 
-    # FIX — Issue 5: Deduplicate exact same plate+timestamp.
-    # Some camera setups have two readers at the same entrance. When a car
-    # drives past, both cameras fire at the same second, creating duplicate
-    # rows. keep="first" means keep one copy, discard the rest.
+    # Deduplicate same plate + same timestamp.
+    # Two cameras at the same entrance can fire simultaneously, creating
+    # identical rows. One copy is enough.
     df = df.drop_duplicates(subset=["plate", "local_time"], keep="first")
 
-    # Return only the two columns the rest of the script needs.
-    # Dropping unused columns keeps memory usage low on large files.
-    return df[["plate", "local_time"]]
+    return df[["plate", "local_time"]].copy()
 
 
 def load_payments(path: str) -> pd.DataFrame:
     """
     Loads the payments CSV.
 
-    dtype=str tells pandas to read every column as text, not numbers.
-    Without this, pandas might interpret "="SK041H"" as a formula and
-    mangle it, or try to convert plate numbers to integers.
+    dtype=str reads every column as plain text. Without this, pandas might
+    try to parse "="SK041H"" as a formula, or turn numeric-looking plates
+    like "0006" into the integer 6.
     """
     df = pd.read_csv(path, dtype=str)
     df.columns = df.columns.str.strip()
 
-    df["plate"] = df["License Plate"].apply(normalise_payments_plate)
+    plate_col = find_column(df, ["license plate", "licence plate", "plate"])
+    if not plate_col:
+        raise ValueError(
+            f"Payments file has no recognisable plate column.\n"
+            f"Available columns: {list(df.columns)}"
+        )
 
-    # Remove rows where plate came back empty
+    df["plate"] = df[plate_col].apply(normalise_payments_plate)
     df = df[df["plate"] != ""]
 
-    # drop_duplicates() removes identical rows.
-    # We only care whether a plate paid at all — not how many times.
-    return df[["plate"]].drop_duplicates()
+    # We only need to know whether a plate paid at all — not how many times.
+    # drop_duplicates() keeps one row per unique plate.
+    return df[["plate"]].drop_duplicates().copy()
 
 
 def load_citations(path: str) -> pd.DataFrame:
     """
-    Loads the citations XLS (legacy Excel format).
+    Loads the citations file (.xls or .xlsx).
 
     FORMAT QUIRKS:
-      1. It's an .xls file (old Excel format), not .xlsx.
-         pandas needs engine="xlrd" to read these — openpyxl (the default)
-         can only read .xlsx files.
-      2. The first 9 rows are report metadata (title, date range, etc).
-         The actual column headers are on row 10, which is index 9.
-         So we use header=9.
+      1. Legacy .xls format requires engine="xlrd".
+      2. The first 9 rows are report metadata. Real headers are on row 10
+         (index 9 in zero-based counting), so we use header=9.
     """
-    df = pd.read_excel(path, engine="xlrd", header=9)
+    engine = excel_engine_for(path)
+
+    try:
+        df = pd.read_excel(path, engine=engine, header=9)
+    except ImportError:
+        raise ImportError(
+            "Reading .xls files requires xlrd.\n"
+            "Fix: pip install xlrd"
+        )
+
     df.columns = df.columns.str.strip()
 
-    df = df.rename(columns={"License #": "plate_raw"})
-    df = df.dropna(subset=["plate_raw"])
+    plate_col = find_column(df, ["license #", "licence #", "license", "licence", "plate"])
+    if not plate_col:
+        raise ValueError(
+            f"Citations file has no recognisable plate column.\n"
+            f"Available columns: {list(df.columns)}"
+        )
 
-    # Apply citations-specific normalisation (extracts middle of PROV-PLATE-SUFFIX)
-    # This also filters out the 94 "License #" header-repeat rows automatically
-    df["plate"] = df["plate_raw"].apply(normalise_citations_plate)
-
-    # Filter out empty strings (malformed rows, blank plates)
+    df["plate"] = df[plate_col].apply(normalise_citations_plate)
     df = df[df["plate"] != ""]
 
-    return df[["plate"]].drop_duplicates()
+    return df[["plate"]].drop_duplicates().copy()
 
 
 def load_permits(path: str) -> pd.DataFrame:
     """
-    Loads the optional permit holders file (planned for future use).
+    Loads the optional permit holders file (when available).
 
-    This function is flexible — it tries to find the right columns by
-    looking for keywords in column names, because permit exports vary.
+    Flexible column detection handles different export formats — the permit
+    system may label columns differently from the payments system.
     """
-    if path.endswith(".csv"):
+    suffix = Path(path).suffix.lower()
+    if suffix == ".csv":
         df = pd.read_csv(path, dtype=str)
     else:
-        df = pd.read_excel(path, dtype=str)
+        df = pd.read_excel(path, dtype=str, engine=excel_engine_for(path))
 
     df.columns = df.columns.str.strip()
 
-    # next() returns the first item from a sequence, or None if empty.
-    # The generator expression creates a lazy sequence of matching column names.
-    plate_col  = next((c for c in df.columns if any(
-                    w in c.lower() for w in ["plate", "licence", "license"])), None)
-    permit_col = next((c for c in df.columns if "permit" in c.lower()), None)
-    name_col   = next((c for c in df.columns if "name"   in c.lower()), None)
+    plate_col  = find_column(df, ["plate", "licence", "license"])
+    permit_col = find_column(df, ["permit"])
+    name_col   = find_column(df, ["name"])
+
+    if not plate_col:
+        raise ValueError(
+            f"Permits file has no recognisable plate column.\n"
+            f"Available columns: {list(df.columns)}"
+        )
 
     out = pd.DataFrame()
-    if plate_col:
-        out["plate"] = df[plate_col].apply(normalise_payments_plate)
+    out["plate"] = df[plate_col].apply(normalise_payments_plate)
+
     if permit_col:
         out["permit_number"] = df[permit_col].fillna("").astype(str)
+
     if name_col:
         out["name"] = df[name_col].fillna("").astype(str)
 
-    if out.empty:
-        return out
-
     out = out[out["plate"] != ""]
-    return out.drop_duplicates(subset=["plate"])
+    return out.drop_duplicates(subset=["plate"]).copy()
 
 
 # =============================================================================
-# SECTION 3: VISIT DETECTION (THE CORE LOGIC)
+# SECTION 4 — VISIT LOGIC (THE CORE)
 # =============================================================================
 #
-# THE PROBLEM WE'RE SOLVING:
-#   The camera system doesn't give us clean "arrived at X, left at Y" events.
-#   It records every time a camera spots a plate driving past.
-#   A car parked for 3 hours might generate 40+ reads as it passes cameras.
+# WHAT COUNTS AS A QUALIFYING VISIT:
+#   A plate must appear on a given calendar day, AND the time between its
+#   first camera read and last camera read that day must be >= min_hours.
 #
-# HOW WE DETECT A SESSION (FIX — Issue 4, gap-based approach):
-#   We sort all reads for a plate by time, then look at the GAP between
-#   consecutive reads. If the gap exceeds SESSION_GAP_MINUTES, we treat
-#   that as the car having left and come back — a new session starts.
+#   Why first-to-last read per day?
+#   The camera system doesn't give entry/exit events — just drive-by reads.
+#   The span from first to last read is the best observable proxy for
+#   "how long was this car on campus today."
 #
-#   Example for plate SK041H with SESSION_GAP_MINUTES = 120:
+# WHAT COUNTS AS QUALIFYING FOR THE PERK:
+#   A plate needs min_visits days where it had a qualifying visit.
+#   The default is 10 days in the month.
 #
-#   Time      Gap from previous
-#   09:01     ---        <- first read, start of session 1
-#   09:14     13 min     <- still session 1 (gap < 120)
-#   09:45     31 min     <- still session 1
-#   10:22     37 min     <- still session 1
-#   *** 13:05  163 min   <- GAP > 120 -> NEW SESSION STARTS ***
-#   13:08     3 min      <- session 2
-#   14:30     82 min     <- still session 2
-#   15:01     31 min     <- still session 2
-#
-#   Session 1: 09:01 -> 10:22 = 1h 21m  qualifies (> 1 hour)
-#   Session 2: 13:05 -> 15:01 = 1h 56m  qualifies
-#   -> 2 qualifying visits for this plate
-#
-#   This also solves midnight crossings automatically. A car seen at 11pm
-#   and 1am has a 2-hour gap — below threshold — so it stays one session
-#   instead of being split across two calendar days.
-#
-# WHY 120 MINUTES?
-#   We analysed the actual gap distribution in the data. Gaps under 120 mins
-#   are common even for parked cars (cameras pick them up intermittently).
-#   After 120 mins the frequency drops sharply — signalling genuine departure.
+# WHY NOT SESSIONS?
+#   We considered gap-based session detection but the daily method is
+#   simpler, unambiguous, and directly matches the stated rule:
+#   "10 separate occasions." A calendar day is a clear, defensible unit.
 # =============================================================================
-
-SESSION_GAP_MINUTES = 120  # change this one number to adjust the session boundary
-
 
 def compute_qualifying_visits(
     reads: pd.DataFrame,
     min_visits: int,
-    min_hours: float
+    min_hours: float,
 ) -> pd.DataFrame:
     """
-    Takes the cleaned plate reads and returns plates that have enough
-    qualifying sessions to be considered for a perk.
+    Returns one row per plate that has enough qualifying days.
 
     Parameters:
-        reads       -- DataFrame with columns: plate, local_time
-        min_visits  -- how many qualifying sessions required (default: 10)
-        min_hours   -- minimum session duration to count (default: 1.0)
+        reads       — DataFrame with columns: plate, local_time
+        min_visits  — number of qualifying days required (default: 10)
+        min_hours   — minimum first-to-last span per day (default: 1.0)
 
-    Returns a DataFrame with one row per qualifying plate.
+    Returns columns: plate, qualifying_days, avg_hours_per_visit
     """
 
-    # STEP A: Sort reads by plate then by time.
-    # This is essential — gap calculations only make sense in chronological order.
-    reads = reads.sort_values(["plate", "local_time"])
+    # STEP A: Extract the calendar date from each timestamp.
+    # .dt.date strips the time component: 2026-04-15 09:14:32 -> 2026-04-15
+    reads = reads.copy()
+    reads["visit_date"] = reads["local_time"].dt.date
 
-    # STEP B: Calculate the time gap before each read.
-    # .groupby("plate") splits the DataFrame into one group per plate.
-    # ["local_time"].shift(1) shifts the time column down by 1 row WITHIN
-    # each group, so each row gets the timestamp of the PREVIOUS read for
-    # that same plate.
-    #
-    # Before shift:             After shift(1):
-    #   plate    time             plate    time    prev_time
-    #   SK041H   09:01            SK041H   09:01   NaT       <- first, no previous
-    #   SK041H   09:14            SK041H   09:14   09:01
-    #   SK041H   13:05            SK041H   13:05   09:14
-    #   XR099L   08:00            XR099L   08:00   NaT       <- new plate, resets
-    #   XR099L   08:15            XR099L   08:15   08:00
-    reads["prev_time"] = reads.groupby("plate")["local_time"].shift(1)
-
-    # Subtract to get the gap as a timedelta, then convert to minutes.
-    reads["gap_mins"] = (
-        reads["local_time"] - reads["prev_time"]
-    ).dt.total_seconds() / 60
-
-    # STEP C: Mark where new sessions begin.
-    # A new session starts when gap_mins is NaN (first read for this plate)
-    # OR when gap_mins exceeds our threshold (car was gone long enough).
-    # The | operator means OR. Result is a True/False column.
-    reads["is_new_session"] = (
-        reads["gap_mins"].isna() |
-        (reads["gap_mins"] > SESSION_GAP_MINUTES)
-    )
-
-    # STEP D: Assign a session ID to every read.
-    # .cumsum() on a True/False column counts the True values seen so far.
-    # Since is_new_session is True at the start of each session, cumsum()
-    # gives us an incrementing session number within each plate's group.
-    #
-    # is_new_session    cumsum = session_id
-    # True              1      <- session 1 starts
-    # False             1      <- still session 1
-    # False             1
-    # True              2      <- session 2 starts
-    # False             2
-    reads["session_id"] = reads.groupby("plate")["is_new_session"].cumsum()
-
-    # STEP E: Measure each session's duration.
-    # Group by plate + session_id, get first and last read time.
-    # The difference = how long the car was on campus in that session.
-    sessions = (
+    # STEP B: For each plate + date combination, find the first and last read.
+    # groupby() splits the table into groups (one per unique plate+date pair).
+    # agg() then computes summary values for each group:
+    #   "min" of local_time = earliest read = when they first appeared
+    #   "max" of local_time = latest read   = when they last appeared
+    daily = (
         reads
-        .groupby(["plate", "session_id"])
+        .groupby(["plate", "visit_date"])
         .agg(
-            session_start=("local_time", "min"),
-            session_end=  ("local_time", "max"),
+            first_read=("local_time", "min"),
+            last_read= ("local_time", "max"),
         )
         .reset_index()
-        # reset_index() promotes plate and session_id from index levels back
-        # into regular columns, making the DataFrame easier to work with.
+        # reset_index() brings plate and visit_date back as regular columns
+        # rather than index levels, which makes further operations easier
     )
 
-    sessions["duration_hrs"] = (
-        sessions["session_end"] - sessions["session_start"]
+    # STEP C: Calculate how long each daily span was.
+    # Subtracting two datetime columns gives a timedelta (a duration).
+    # .dt.total_seconds() / 3600 converts that to decimal hours.
+    daily["duration_hrs"] = (
+        daily["last_read"] - daily["first_read"]
     ).dt.total_seconds() / 3600
 
-    # STEP F: Keep only sessions that meet the minimum duration.
-    qualifying_sessions = sessions[sessions["duration_hrs"] >= min_hours].copy()
+    # STEP D: Keep only days where the span met the minimum.
+    qualifying = daily[daily["duration_hrs"] >= min_hours].copy()
 
-    # STEP G: Count qualifying sessions per plate and compute average duration.
-    plate_summary = (
-        qualifying_sessions
+    if qualifying.empty:
+        return pd.DataFrame(columns=["plate", "qualifying_days", "avg_hours_per_visit"])
+
+    # STEP E: Count qualifying days and average duration per plate.
+    # nunique() counts distinct values — so if a plate appeared on
+    # April 3 in two rows (shouldn't happen after groupby, but safe),
+    # it still only counts as 1 day.
+    summary = (
+        qualifying
         .groupby("plate")
         .agg(
-            qualifying_visits=  ("session_id",    "count"),
+            qualifying_days=    ("visit_date",    "nunique"),
             avg_hours_per_visit=("duration_hrs",  "mean"),
         )
         .reset_index()
     )
 
-    plate_summary["avg_hours_per_visit"] = plate_summary["avg_hours_per_visit"].round(1)
+    summary["avg_hours_per_visit"] = summary["avg_hours_per_visit"].round(1)
 
-    # STEP H: Keep only plates with enough qualifying visits.
-    return plate_summary[plate_summary["qualifying_visits"] >= min_visits].copy()
+    # STEP F: Keep only plates that hit the minimum visit count.
+    return summary[summary["qualifying_days"] >= min_visits].copy()
 
 
 # =============================================================================
-# SECTION 4: REPORT WRITER
+# SECTION 5 — REPORT WRITER
 # =============================================================================
 #
-# Style constants defined at module level (outside any function).
-# Defining them once here means if you want to change the header colour,
-# you change it in one place and it updates everywhere.
+# Style constants live here at module level so changing the colour scheme
+# means editing one place, not hunting through the function.
 #
-# Colours are hex codes (same as in CSS/HTML):
-#   "1F4E79" = dark navy blue   "FFFFFF" = white
-#   "EBF3FB" = light blue       "E2EFDA" = light green (permit holders)
+# All colours are hex strings (same format as HTML/CSS):
+#   "1F4E79" = dark navy   "FFFFFF" = white
+#   "EBF3FB" = light blue  "E2EFDA" = light green (permit holder rows)
+#   "595959" = mid grey    "375623" = dark green (permit holder text)
 # =============================================================================
 
 HEADER_FILL = PatternFill("solid", start_color="1F4E79")
 HEADER_FONT = Font(name="Arial", bold=True, color="FFFFFF", size=11)
-TITLE_FONT  = Font(name="Arial", bold=True, size=14, color="1F4E79")
+TITLE_FONT  = Font(name="Arial", bold=True, size=14,  color="1F4E79")
 BODY_FONT   = Font(name="Arial", size=10)
-ALT_FILL    = PatternFill("solid", start_color="EBF3FB")
-GREEN_FILL  = PatternFill("solid", start_color="E2EFDA")
+ALT_FILL    = PatternFill("solid", start_color="EBF3FB")   # even rows
+GREEN_FILL  = PatternFill("solid", start_color="E2EFDA")   # permit holders
 GREEN_FONT  = Font(name="Arial", size=10, color="375623")
 THIN_SIDE   = Side(style="thin", color="B8CCE4")
-CELL_BORDER = Border(left=THIN_SIDE, right=THIN_SIDE, top=THIN_SIDE, bottom=THIN_SIDE)
+CELL_BORDER = Border(
+    left=THIN_SIDE, right=THIN_SIDE,
+    top=THIN_SIDE,  bottom=THIN_SIDE,
+)
 
 
-def _style_header_row(ws, row_num: int, num_cols: int):
-    """
-    Applies dark blue header style to a row.
-    Underscore prefix = internal helper, not meant to be called from outside.
-    """
+def _style_header_row(ws, row_num: int, num_cols: int) -> None:
+    """Applies the dark blue header style to every cell in a row."""
     for col in range(1, num_cols + 1):
         cell           = ws.cell(row=row_num, column=col)
         cell.font      = HEADER_FONT
@@ -486,67 +479,73 @@ def write_report(
     qualifiers: pd.DataFrame,
     output_path: str,
     month_label: str,
-    summary_stats: dict
-):
+    summary_stats: dict,
+) -> None:
     """
-    Writes the final Excel report with two sheets:
-      Sheet 1 — Qualifiers: one formatted row per winning plate
-      Sheet 2 — Processing Summary: funnel counts from each stage
+    Writes the Excel report with two sheets:
+      Sheet 1 — "Qualifiers":          one formatted row per winning plate
+      Sheet 2 — "Processing Summary":  funnel counts showing how many plates
+                                        passed each stage (audit trail)
     """
 
-    # Workbook() creates a new empty Excel file in memory.
-    # Nothing is written to disk until wb.save() at the very end.
+    # Workbook() creates an empty Excel file in memory.
+    # Nothing hits disk until wb.save() at the end.
     wb = Workbook()
 
-    # ---- SHEET 1: QUALIFIERS ---------------------------------------------
+    # -------------------------------------------------------------------------
+    # SHEET 1 — QUALIFIERS
+    # -------------------------------------------------------------------------
     ws = wb.active
-    ws.title = "Parking Perks Qualifiers"
+    ws.title      = "Parking Perks Qualifiers"
+    ws.freeze_panes = "A4"      # rows 1-3 stay visible when scrolling down
 
-    # freeze_panes = "A4" keeps rows 1-3 visible when scrolling down.
-    ws.freeze_panes = "A4"
-
-    # Row 1: title spanning all 7 columns
+    # Row 1: title spanning all columns
     ws.merge_cells("A1:G1")
-    ws["A1"] = f"Parking Perks — Qualifying Participants  |  {month_label}"
+    ws["A1"]           = f"Parking Perks — Qualifying Participants  |  {month_label}"
     ws["A1"].font      = TITLE_FONT
     ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
     ws.row_dimensions[1].height = 32
 
-    # Row 2: metadata (date generated, count, criteria used)
+    # Row 2: run metadata
     ws.merge_cells("A2:G2")
     ws["A2"] = (
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}    "
         f"Total qualifiers: {len(qualifiers)}    "
-        f"Criteria: {summary_stats['min_visits']}+ visits of "
-        f"{summary_stats['min_hours']}+ hr | Valid payment/permit | No citations"
+        f"Criteria: {summary_stats['min_visits']}+ days of "
+        f"{summary_stats['min_hours']}+ hr  |  Valid payment/permit  |  No citations"
     )
     ws["A2"].font      = Font(name="Arial", size=9, italic=True, color="595959")
     ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
     ws.row_dimensions[2].height = 18
 
     # Row 3: column headers
-    headers = ["#", "Plate Number", "Name", "Permit Number",
-               "Visits This Month", "Avg Stay (hrs)", "Payment Source"]
-
-    # enumerate(headers, 1) gives (1, "#"), (2, "Plate Number"), ...
-    # Starting at 1 because Excel columns are 1-indexed.
-    for col_num, header_text in enumerate(headers, 1):
-        ws.cell(row=3, column=col_num, value=header_text)
+    headers = [
+        "#",
+        "Plate Number",
+        "Name",
+        "Permit Number",
+        "Days on Campus",
+        "Avg Stay (hrs)",
+        "Payment Source",
+    ]
+    for col_num, text in enumerate(headers, 1):
+        ws.cell(row=3, column=col_num, value=text)
     _style_header_row(ws, row_num=3, num_cols=len(headers))
     ws.row_dimensions[3].height = 28
 
     # Rows 4+: one row per qualifying plate
-    CENTRE_COLS = {1, 5, 6}   # columns where numbers look better centred
+    # Columns 1, 5, 6 contain numbers — centre those; left-align text columns.
+    CENTRE_COLS = {1, 5, 6}
 
-    for display_num, (_, row) in enumerate(qualifiers.iterrows(), 1):
-        excel_row = display_num + 3   # offset past the 3 header rows
+    for display_num, (_, row) in enumerate(qualifiers.iterrows(), start=1):
+        excel_row = display_num + 3     # offset past the 3 header rows
 
         row_data = [
             display_num,
             row["plate"],
             row.get("name", ""),
             row.get("permit_number", ""),
-            row["qualifying_visits"],
+            row["qualifying_days"],
             row["avg_hours_per_visit"],
             row.get("payment_source", "Payment"),
         ]
@@ -562,42 +561,52 @@ def write_report(
             cell.border    = CELL_BORDER
             cell.alignment = Alignment(
                 horizontal="center" if col_num in CENTRE_COLS else "left",
-                vertical="center"
+                vertical="center",
             )
         ws.row_dimensions[excel_row].height = 20
 
-    # Set column widths (in character units)
-    for col_num, width in enumerate([5, 16, 28, 18, 20, 18, 16], 1):
+    # Column widths (in character units)
+    for col_num, width in enumerate([5, 16, 28, 18, 18, 16, 16], 1):
         ws.column_dimensions[get_column_letter(col_num)].width = width
 
-    # ---- SHEET 2: PROCESSING SUMMARY -------------------------------------
-    # An audit trail showing how many plates passed through each stage.
+    # -------------------------------------------------------------------------
+    # SHEET 2 — PROCESSING SUMMARY
+    # -------------------------------------------------------------------------
     ws2 = wb.create_sheet("Processing Summary")
-    ws2.column_dimensions["A"].width = 42
-    ws2.column_dimensions["B"].width = 20
+    ws2.column_dimensions["A"].width = 44
+    ws2.column_dimensions["B"].width = 28
 
-    ws2["A1"] = "Parking Perks — Processing Summary"
+    ws2["A1"]      = "Parking Perks — Processing Summary"
     ws2["A1"].font = TITLE_FONT
     ws2.row_dimensions[1].height = 30
 
+    # Each tuple is (label, value). (None, None) inserts a blank spacer row.
     summary_rows = [
         ("Month",    month_label),
         ("Run date", datetime.now().strftime("%Y-%m-%d %H:%M")),
         (None, None),
+        ("-- Input files --", None),
+        ("Reads file date range",               summary_stats["date_range"]),
+        ("Unique dates in reads file",          summary_stats["coverage_days"]),
+        ("Cleaned plate read rows",             summary_stats["read_rows"]),
+        ("Unique plates in reads",              summary_stats["total_plates"]),
+        ("Unique paid plates",                  summary_stats["payment_plates"]),
+        ("Unique cited plates",                 summary_stats["citation_plates"]),
+        ("Unique permit plates",                summary_stats["permit_plates"]),
+        (None, None),
         ("-- Stage 1: Visit behaviour --", None),
-        ("Total unique plates in reads file",                        summary_stats["total_plates"]),
-        (f"Plates with {summary_stats['min_visits']}+ qualifying sessions (>={summary_stats['min_hours']} hr)",
-                                                                     summary_stats["stage1"]),
-        ("Session gap threshold used",                               f"{SESSION_GAP_MINUTES} minutes"),
+        (f"Minimum qualifying days required",   summary_stats["min_visits"]),
+        ("Minimum hours per day (first→last)",  summary_stats["min_hours"]),
+        ("Plates passing stage 1",              summary_stats["stage1"]),
         (None, None),
         ("-- Stage 2: Valid payment / permit --", None),
-        ("Plates matched to payment record",                         summary_stats["stage2_payment"]),
-        ("Plates matched to permit (if file provided)",              summary_stats["stage2_permit"]),
-        ("Plates passing stage 2 (either source)",                   summary_stats["stage2_total"]),
+        ("Matched via payment",                 summary_stats["stage2_payment"]),
+        ("Matched via permit",                  summary_stats["stage2_permit"]),
+        ("Plates passing stage 2",              summary_stats["stage2_total"]),
         (None, None),
         ("-- Stage 3: No citations --", None),
-        ("Plates removed (had citation)",                            summary_stats["removed_citations"]),
-        ("FINAL QUALIFIERS",                                         summary_stats["final"]),
+        ("Plates removed (had citation)",       summary_stats["removed_citations"]),
+        ("FINAL QUALIFIERS",                    summary_stats["final"]),
     ]
 
     for row_idx, (label, value) in enumerate(summary_rows, start=2):
@@ -605,18 +614,42 @@ def write_report(
         is_final   = label == "FINAL QUALIFIERS"
 
         label_cell      = ws2.cell(row=row_idx, column=1, value=label)
-        label_cell.font = Font(name="Arial", size=10,
-                               bold=(is_section or is_final),
-                               color="1F4E79" if is_final else "000000")
+        label_cell.font = Font(
+            name="Arial", size=10,
+            bold=(is_section or is_final),
+            color="1F4E79" if is_final else "000000",
+        )
 
         if value is not None:
             val_cell           = ws2.cell(row=row_idx, column=2, value=value)
-            val_cell.font      = Font(name="Arial", size=10, bold=is_final,
-                                      color="1F4E79" if is_final else "000000")
+            val_cell.font      = Font(
+                name="Arial", size=10,
+                bold=is_final,
+                color="1F4E79" if is_final else "000000",
+            )
             val_cell.alignment = Alignment(horizontal="right")
 
-    ws2.cell(row=len(summary_rows) + 4, column=1,
-             value="Note: Green rows on the Qualifiers sheet = permit holders."
+    # Warn if the reads file is too short to produce official qualifiers
+    if summary_stats["coverage_days"] < summary_stats["min_visits"]:
+        warn_row = len(summary_rows) + 4
+        ws2.merge_cells(
+            start_row=warn_row, start_column=1,
+            end_row=warn_row,   end_column=2,
+        )
+        cell       = ws2.cell(row=warn_row, column=1)
+        cell.value = (
+            f"WARNING: reads file only covers {summary_stats['coverage_days']} unique dates "
+            f"but the threshold is {summary_stats['min_visits']}. "
+            f"Run with --min-visits {summary_stats['coverage_days']} to test."
+        )
+        cell.font      = Font(name="Arial", size=9, bold=True, color="7F6000")
+        cell.fill      = PatternFill("solid", start_color="FFF2CC")
+        cell.alignment = Alignment(wrap_text=True)
+        ws2.row_dimensions[warn_row].height = 42
+
+    ws2.cell(
+        row=len(summary_rows) + 6, column=1,
+        value="Note: green rows on the Qualifiers sheet = permit holders.",
     ).font = Font(name="Arial", size=9, italic=True, color="595959")
 
     wb.save(output_path)
@@ -624,110 +657,124 @@ def write_report(
 
 
 # =============================================================================
-# SECTION 5: MAIN — orchestrates everything in order
+# SECTION 6 — MAIN
 # =============================================================================
 #
-# This function doesn't do data processing itself. It:
-#   1. Reads your command-line arguments
-#   2. Calls the loaders to get clean DataFrames
-#   3. Runs the three filter stages in sequence
-#   4. Passes results to write_report()
-#
-# Think of it as the manager — it delegates to specialists.
+# The conductor. Doesn't process data itself — calls specialists in order
+# and passes results along. If you want to understand the flow, read this
+# function top to bottom and follow the function calls outward.
 # =============================================================================
 
-def main():
+def main() -> None:
 
-    # ---- ARGUMENT PARSING ------------------------------------------------
-    # argparse lets us accept named flags on the command line.
-    # required=True  -> script errors clearly if you forget this flag
-    # default=       -> used when the flag is not provided
-    # type=          -> automatically converts the string to the right type
+    # ---- ARGUMENT PARSING --------------------------------------------------
     parser = argparse.ArgumentParser(
-        description="Parking Perks — monthly qualifying plate report"
+        description="Parking Perks — monthly qualifying plate report",
     )
-    parser.add_argument("--reads",      required=True,  help="Plate reads file (.xlsx)")
-    parser.add_argument("--payments",   required=True,  help="Payments file (.csv)")
-    parser.add_argument("--citations",  required=True,  help="Citations file (.xls or .xlsx)")
-    parser.add_argument("--permits",    default=None,   help="Optional: permit holders (.csv or .xlsx)")
-    parser.add_argument("--output",     default="Parking_Perks_Report.xlsx")
-    parser.add_argument("--min-visits", type=int,   default=5)
-    parser.add_argument("--min-hours",  type=float, default=1.0)
+    parser.add_argument("--reads",      required=True,
+                        help="Plate reads file (.xlsx)")
+    parser.add_argument("--payments",   required=True,
+                        help="Payments file (.csv)")
+    parser.add_argument("--citations",  required=True,
+                        help="Citations file (.xls or .xlsx)")
+    parser.add_argument("--permits",    default=None,
+                        help="Optional: permit holders file (.csv or .xlsx)")
+    parser.add_argument("--output",     default="Parking_Perks_Report.xlsx",
+                        help="Output filename (default: Parking_Perks_Report.xlsx)")
+    parser.add_argument("--min-visits", type=int,   default=10,
+                        help="Qualifying days required (default: 10)")
+    parser.add_argument("--min-hours",  type=float, default=1.0,
+                        help="Minimum hours on campus per day (default: 1.0)")
     args = parser.parse_args()
 
+    # Build a readable month label from the reads filename.
+    # "April_Plate_Reads.xlsx" -> "April Plate Reads"
     month_label = (
         os.path.basename(args.reads)
-        .replace("_", " ").replace(".xlsx", "").replace(".xls", "")
+        .replace("_", " ")
+        .replace(".xlsx", "")
+        .replace(".xls",  "")
     )
 
-    # ---- LOAD FILES ------------------------------------------------------
+    # ---- LOAD FILES --------------------------------------------------------
     print("\nLoading and cleaning files...")
     reads     = load_plate_reads(args.reads)
     payments  = load_payments(args.payments)
     citations = load_citations(args.citations)
-    permits   = load_permits(args.permits) if args.permits else pd.DataFrame(columns=["plate"])
+    permits   = (
+        load_permits(args.permits)
+        if args.permits
+        else pd.DataFrame(columns=["plate"])
+    )
 
-    total_plates = reads["plate"].nunique()
-    # :, inside an f-string formats numbers with commas: 50000 -> "50,000"
+    coverage_days = reads["local_time"].dt.date.nunique()
+    date_min      = reads["local_time"].dt.date.min()
+    date_max      = reads["local_time"].dt.date.max()
+    date_range    = f"{date_min} to {date_max}"
+    total_plates  = reads["plate"].nunique()
+
+    # :, formats numbers with commas: 50000 -> "50,000"
     print(f"  Plate reads:  {len(reads):,} rows | {total_plates:,} unique plates")
+    print(f"  Date range:   {date_range}  ({coverage_days} unique dates)")
     print(f"  Payments:     {len(payments):,} unique plates")
     print(f"  Citations:    {len(citations):,} unique plates")
     if not permits.empty:
         print(f"  Permits:      {len(permits):,} unique plates")
 
-    # ---- STAGE 1: VISIT BEHAVIOUR ----------------------------------------
-    print(f"\nStage 1 — sessions of {args.min_hours}+ hrs, gap threshold {SESSION_GAP_MINUTES} mins...")
+    if coverage_days < args.min_visits:
+        print(
+            f"\n  WARNING: reads file covers {coverage_days} dates "
+            f"but threshold is {args.min_visits}. "
+            f"Try --min-visits {coverage_days} to test the pipeline."
+        )
+
+    # ---- STAGE 1: VISIT BEHAVIOUR ------------------------------------------
+    print(f"\nStage 1 — plates with {args.min_visits}+ days of {args.min_hours}+ hr...")
     stage1 = compute_qualifying_visits(reads, args.min_visits, args.min_hours)
-    print(f"  -> {len(stage1):,} plates have {args.min_visits}+ qualifying sessions")
+    print(f"  -> {len(stage1):,} plates qualify")
 
-    if len(stage1) == 0:
-        print("  Tip: use --min-visits 4 to test with a partial-month file.")
-
-    # ---- STAGE 2: VALID PAYMENT OR PERMIT --------------------------------
-    # Convert plate columns to Python sets for O(1) lookup speed.
-    # Checking "x in a_set" is instant regardless of set size.
-    # Checking "x in a_list" gets slower as the list grows.
+    # ---- STAGE 2: VALID PAYMENT OR PERMIT ----------------------------------
+    # Python sets give O(1) lookup — "is this plate in the set" is instant
+    # regardless of how large the set is. Lists get slower as they grow.
     paid_plates   = set(payments["plate"])
     permit_plates = set(permits["plate"]) if not permits.empty else set()
 
-    # .isin(set) checks each plate against the set, returning a True/False column
+    # .isin(set) produces a True/False column: True where the plate is in the set
     stage1["has_payment"]   = stage1["plate"].isin(paid_plates)
     stage1["has_permit"]    = stage1["plate"].isin(permit_plates)
-    stage1["valid_payment"] = stage1["has_payment"] | stage1["has_permit"]
+    stage1["valid_payment"] = stage1["has_payment"] | stage1["has_permit"]   # OR
 
-    stage2_payment_count = int(stage1["has_payment"].sum())
-    stage2_permit_count  = int(stage1["has_permit"].sum())
-    stage2 = stage1[stage1["valid_payment"]].copy()
+    stage2_payment = int(stage1["has_payment"].sum())
+    stage2_permit  = int(stage1["has_permit"].sum())
+    stage2         = stage1[stage1["valid_payment"]].copy()
 
-    print(f"\nStage 2 — cross-referencing payment and permit records...")
-    print(f"  Matched via payment: {stage2_payment_count}")
-    print(f"  Matched via permit:  {stage2_permit_count}")
+    print(f"\nStage 2 — cross-referencing payments and permits...")
+    print(f"  Matched via payment: {stage2_payment}")
+    print(f"  Matched via permit:  {stage2_permit}")
     print(f"  -> {len(stage2):,} plates have valid payment or permit")
 
-    # ---- STAGE 3: NO CITATIONS -------------------------------------------
+    # ---- STAGE 3: NO CITATIONS ---------------------------------------------
     cited_plates = set(citations["plate"])
 
-    # The ~ operator inverts a boolean column: True -> False, False -> True
-    # So ~stage2["plate"].isin(cited_plates) = "plate is NOT in cited set"
-    stage3 = stage2[~stage2["plate"].isin(cited_plates)].copy()
+    # ~ inverts a boolean column: True -> False, False -> True
+    # So ~stage2["plate"].isin(cited_plates) means "plate is NOT cited"
+    stage3        = stage2[~stage2["plate"].isin(cited_plates)].copy()
     removed_count = len(stage2) - len(stage3)
 
     print(f"\nStage 3 — removing plates with citations...")
     print(f"  Removed: {removed_count}")
     print(f"  -> {len(stage3):,} final qualifiers")
 
-    # ---- ENRICH WITH PERMIT DATA -----------------------------------------
-    # Label each qualifier's payment source for display in the report
+    # ---- ENRICH WITH PERMIT DATA -------------------------------------------
+    # Label each qualifier's payment source for the report
     stage3["payment_source"] = stage3.apply(
-        # lambda = anonymous one-line function. r = each row.
         lambda r: "Permit" if r["has_permit"] else "Payment",
-        axis=1   # axis=1 = apply row-by-row (not column-by-column)
+        axis=1,     # axis=1 = apply function row-by-row
     )
 
-    # If we have permit data, merge in names and permit numbers.
-    # merge() is like a SQL JOIN — matches rows from two DataFrames on "plate".
-    # how="left" keeps ALL rows from stage3, adds permit columns where matched,
-    # fills NaN where there's no match.
+    # Merge in names and permit numbers if we have them.
+    # how="left" keeps all rows from stage3; adds permit columns where matched,
+    # fills NaN where there is no permit record for that plate.
     if not permits.empty:
         permit_cols = ["plate"]
         if "name"          in permits.columns: permit_cols.append("name")
@@ -738,25 +785,31 @@ def main():
     if "permit_number" not in stage3.columns: stage3["permit_number"] = ""
     stage3[["name", "permit_number"]] = stage3[["name", "permit_number"]].fillna("")
 
-    # Sort by most visits first so top performers appear at the top
-    stage3 = stage3.sort_values("qualifying_visits", ascending=False).reset_index(drop=True)
+    # Sort by most days first — top performers appear at the top of the report
+    stage3 = stage3.sort_values("qualifying_days", ascending=False).reset_index(drop=True)
 
-    # ---- WRITE REPORT ----------------------------------------------------
+    # ---- WRITE REPORT ------------------------------------------------------
     summary_stats = {
+        "date_range":        date_range,
+        "coverage_days":     coverage_days,
+        "read_rows":         len(reads),
         "total_plates":      total_plates,
+        "payment_plates":    len(payments),
+        "citation_plates":   len(citations),
+        "permit_plates":     len(permits) if not permits.empty else 0,
+        "min_visits":        args.min_visits,
+        "min_hours":         args.min_hours,
         "stage1":            len(stage1),
-        "stage2_payment":    stage2_payment_count,
-        "stage2_permit":     stage2_permit_count,
+        "stage2_payment":    stage2_payment,
+        "stage2_permit":     stage2_permit,
         "stage2_total":      len(stage2),
         "removed_citations": removed_count,
         "final":             len(stage3),
-        "min_visits":        args.min_visits,
-        "min_hours":         args.min_hours,
     }
 
     print(f"\nWriting report...")
     write_report(stage3, args.output, month_label, summary_stats)
-    print(f"Done. Final qualifier count: {len(stage3)}\n")
+    print(f"  Done. Final qualifier count: {len(stage3)}\n")
 
 
 # =============================================================================
@@ -766,9 +819,8 @@ def main():
 # This block only runs when you execute the file directly:
 #   python parking_perks.py --reads ...
 #
-# It does NOT run if another Python file imports this one.
-# This lets you reuse functions from this file in other scripts without
-# triggering the whole pipeline accidentally.
+# If another Python file imports this one (e.g. for testing), this block
+# is skipped — the import won't accidentally trigger the whole pipeline.
 # =============================================================================
 
 if __name__ == "__main__":

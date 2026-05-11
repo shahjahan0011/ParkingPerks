@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parking Perks — UBC Okanagan</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ─────────────────────────────────────────────────────────────────
+   DESIGN TOKENS  — UBC Okanagan colour palette + typography
+   Primary navy  #002145   UBC Blue
+   Gold accent   #FFD100   UBC Gold
+   Light blue    #0055B7   link/action blue
+   Off-white bg  #F5F5F5
+   Card white    #FFFFFF
+   Border        #D8D8D8
+   Text dark     #212121
+   Text mid      #5C5C5C
+   Text light    #8C8C8C
+   ───────────────────────────────────────────────────────────────── */
+:root {
+  --ubc-navy:    #002145;
+  --ubc-navy-2:  #003366;
+  --ubc-blue:    #0055B7;
+  --ubc-gold:    #FFD100;
+  --ubc-gold-dk: #C8A800;
+  --bg:          #F0F2F5;
+  --card:        #FFFFFF;
+  --border:      #D0D5DD;
+  --border-lt:   #E8EBF0;
+  --green:       #1A7A4A;
+  --green-bg:    #EAF5EF;
+  --red:         #C0392B;
+  --red-bg:      #FDEDED;
+  --amber:       #B45309;
+  --amber-bg:    #FEF3C7;
+  --text-1:      #1A1F36;
+  --text-2:      #4A5568;
+  --text-3:      #8A96A8;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:   0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --sans:        'BC Sans', 'Myriad Pro', 'Segoe UI', Arial, sans-serif;
+  --mono:        'Courier New', Courier, monospace;
+  --radius:      8px;
+  --radius-lg:   12px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── TOP BAR (UBC identity bar) ──────────────────────────────── */
+.ubc-bar {
+  background: var(--ubc-navy);
+  height: 6px;
+}
+
+/* ── HEADER ──────────────────────────────────────────────────── */
+header {
+  background: var(--ubc-navy);
+  padding: 0 48px;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 3px solid var(--ubc-gold);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  max-width: 1060px;
+  margin: 0 auto;
+}
+
+/* UBC wordmark block */
+.ubc-wordmark {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 18px 28px 18px 0;
+  border-right: 1px solid rgba(255,255,255,0.15);
+}
+
+.ubc-wordmark .ubc-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.ubc-wordmark .ubc-campus {
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 0.08em;
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+
+/* Department name block */
+.dept-block {
+  padding: 18px 0 18px 28px;
+}
+
+.dept-block .dept-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.dept-block .dept-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 3px;
+  letter-spacing: 0.03em;
+}
+
+/* ── PAGE TITLE STRIP ────────────────────────────────────────── */
+.page-title-strip {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 24px 48px;
+  box-shadow: var(--shadow-sm);
+}
+
+.page-title-inner {
+  max-width: 1060px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.page-title-strip h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ubc-navy);
+  letter-spacing: -0.01em;
+}
+
+.page-title-strip p {
+  font-size: 13px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.title-badge {
+  background: var(--ubc-navy);
+  color: var(--ubc-gold);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+/* ── MAIN LAYOUT ─────────────────────────────────────────────── */
+main {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 36px 48px 80px;
+}
+
+/* ── CARDS ───────────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 28px;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-lt);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-step {
+  width: 24px; height: 24px;
+  background: var(--ubc-navy);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ubc-navy);
+  letter-spacing: 0.01em;
+}
+
+.card-body { padding: 24px; }
+
+/* ── UPLOAD GRID ─────────────────────────────────────────────── */
+.upload-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative;
+  background: var(--bg);
+}
+
+.upload-zone:hover { border-color: var(--ubc-blue); background: #EBF2FC; }
+.upload-zone.dragover { border-color: var(--ubc-blue); background: #EBF2FC; }
+
+.upload-zone.loaded {
+  border-style: solid;
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+
+.upload-zone input[type="file"] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer;
+  width: 100%; height: 100%;
+}
+
+.upload-icon-wrap {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+  font-size: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s;
+}
+
+.upload-zone.loaded .upload-icon-wrap {
+  border-color: var(--green);
+  background: #fff;
+}
+
+.upload-zone-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 3px;
+}
+
+.upload-zone-ext {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  margin-bottom: 10px;
+}
+
+.upload-zone-hint {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.upload-zone.loaded .upload-zone-hint {
+  color: var(--green);
+  font-weight: 500;
+}
+
+.upload-filename {
+  font-size: 11px;
+  color: var(--green);
+  font-family: var(--mono);
+  margin-top: 6px;
+  word-break: break-all;
+  display: none;
+}
+
+.upload-zone.loaded .upload-filename { display: block; }
+
+/* ── CONFIG ROW ──────────────────────────────────────────────── */
+.config-grid {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 24px;
+  align-items: end;
+}
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+}
+
+.field input {
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-1);
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 9px 14px;
+  width: 110px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field input:focus {
+  border-color: var(--ubc-blue);
+  box-shadow: 0 0 0 3px rgba(0,85,183,0.1);
+}
+
+.config-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.6;
+  padding-bottom: 2px;
+}
+
+/* ── RUN BUTTON ──────────────────────────────────────────────── */
+.run-btn {
+  background: var(--ubc-navy);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 28px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.run-btn:hover:not(:disabled) { background: var(--ubc-navy-2); }
+.run-btn:active:not(:disabled) { transform: scale(0.98); }
+.run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── LOG ─────────────────────────────────────────────────────── */
+.log-box {
+  background: #F8FAFC;
+  border: 1px solid var(--border-lt);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--text-2);
+}
+
+.log-line { display: flex; gap: 10px; align-items: baseline; }
+.log-bullet { font-size: 14px; flex-shrink: 0; }
+.log-line.ok   .log-bullet { color: var(--green); }
+.log-line.warn .log-bullet { color: var(--amber); }
+.log-line.err  .log-bullet { color: var(--red); }
+.log-line.info .log-bullet { color: var(--ubc-blue); }
+
+/* ── FUNNEL CARDS ────────────────────────────────────────────── */
+.funnel {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.funnel-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  border-top: 3px solid var(--border);
+}
+
+.funnel-card.c-blue  { border-top-color: var(--ubc-blue); }
+.funnel-card.c-amber { border-top-color: #F59E0B; }
+.funnel-card.c-red   { border-top-color: var(--red); }
+.funnel-card.c-green { border-top-color: var(--green); }
+
+.funnel-num {
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+
+.funnel-card.c-blue  .funnel-num { color: var(--ubc-blue); }
+.funnel-card.c-amber .funnel-num { color: #D97706; }
+.funnel-card.c-red   .funnel-num { color: var(--red); }
+.funnel-card.c-green .funnel-num { color: var(--green); }
+
+.funnel-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+  line-height: 1.3;
+}
+
+.funnel-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 5px;
+}
+
+/* ── RESULTS TABLE ───────────────────────────────────────────── */
+.table-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-lt);
+  background: #FAFBFC;
+}
+
+.table-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ubc-navy);
+  letter-spacing: 0.02em;
+}
+
+.download-btn {
+  background: var(--card);
+  border: 1.5px solid var(--ubc-blue);
+  border-radius: var(--radius);
+  color: var(--ubc-blue);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 16px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.download-btn:hover {
+  background: var(--ubc-blue);
+  color: #fff;
+}
+
+.table-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { position: sticky; top: 0; z-index: 2; }
+
+thead th {
+  background: #F1F4F8;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+thead th.num { text-align: right; }
+
+tbody tr { border-bottom: 1px solid var(--border-lt); transition: background 0.1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #F5F8FF; }
+
+tbody td {
+  padding: 11px 16px;
+  vertical-align: middle;
+  color: var(--text-1);
+}
+
+td.num { text-align: right; font-family: var(--mono); font-size: 12px; color: var(--text-2); }
+td.plate-col { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--ubc-navy); }
+td.rank { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.badge-payment { background: #EBF4FF; color: var(--ubc-blue); }
+.badge-permit  { background: var(--green-bg); color: var(--green); }
+
+/* ── WARNING BANNER ──────────────────────────────────────────── */
+.warning-banner {
+  background: var(--amber-bg);
+  border: 1px solid #FCD34D;
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--amber);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 16px;
+}
+
+/* ── HIDDEN ──────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+/* ── FOOTER ──────────────────────────────────────────────────── */
+footer {
+  background: var(--ubc-navy);
+  color: rgba(255,255,255,0.45);
+  font-size: 12px;
+  padding: 20px 48px;
+  margin-top: 60px;
+  border-top: 3px solid var(--ubc-gold);
+  text-align: center;
+}
+
+/* ── SCROLLBAR ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+</style>
+</head>
+<body>
+
+<!-- UBC Header -->
+<header>
+  <div class="header-inner">
+    <div class="ubc-wordmark">
+      <div class="ubc-text">UBC</div>
+      <div class="ubc-campus">Okanagan Campus</div>
+    </div>
+    <div class="dept-block">
+      <div class="dept-name">Parking &amp; Sustainable Transportation</div>
+      <div class="dept-sub">parking.ok.ubc.ca</div>
+    </div>
+  </div>
+</header>
+
+<!-- Page title -->
+<div class="page-title-strip">
+  <div class="page-title-inner">
+    <div>
+      <h1>Parking Perks — Monthly Qualifier Tool</h1>
+      <p>Upload the three monthly reports to generate this month's qualifying plate list.</p>
+    </div>
+    <span class="title-badge">Internal Use Only</span>
+  </div>
+</div>
+
+<main>
+
+  <!-- ── STEP 1: UPLOAD ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-step">1</div>
+      <span class="card-title">Upload monthly files</span>
+    </div>
+    <div class="card-body">
+      <div class="upload-grid">
+
+        <div class="upload-zone" id="card-reads"
+             ondragover="onDragOver(event,'reads')"
+             ondragleave="onDragLeave('reads')"
+             ondrop="onDrop(event,'reads')">
+          <input type="file" accept=".xlsx,.xls" id="input-reads"
+                 onchange="onFileSelect(event,'reads')">
+          <div class="upload-icon-wrap" id="icon-reads">📋</div>
+          <div class="upload-zone-title">Plate Reads</div>
+          <div class="upload-zone-ext">.xlsx</div>
+          <div class="upload-zone-hint" id="hint-reads">Click or drag to upload</div>
+          <div class="upload-filename" id="filename-reads"></div>
+        </div>
+
+        <div class="upload-zone" id="card-payments"
+             ondragover="onDragOver(event,'payments')"
+             ondragleave="onDragLeave('payments')"
+             ondrop="onDrop(event,'payments')">
+          <input type="file" accept=".csv" id="input-payments"
+                 onchange="onFileSelect(event,'payments')">
+          <div class="upload-icon-wrap" id="icon-payments">💳</div>
+          <div class="upload-zone-title">Payments</div>
+          <div class="upload-zone-ext">.csv</div>
+          <div class="upload-zone-hint" id="hint-payments">Click or drag to upload</div>
+          <div class="upload-filename" id="filename-payments"></div>
+        </div>
+
+        <div class="upload-zone" id="card-citations"
+             ondragover="onDragOver(event,'citations')"
+             ondragleave="onDragLeave('citations')"
+             ondrop="onDrop(event,'citations')">
+          <input type="file" accept=".xlsx,.xls" id="input-citations"
+                 onchange="onFileSelect(event,'citations')">
+          <div class="upload-icon-wrap" id="icon-citations">🚫</div>
+          <div class="upload-zone-title">Citations</div>
+          <div class="upload-zone-ext">.xls / .xlsx</div>
+          <div class="upload-zone-hint" id="hint-citations">Click or drag to upload</div>
+          <div class="upload-filename" id="filename-citations"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STEP 2: CONFIGURE & RUN ────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-step">2</div>
+      <span class="card-title">Configure &amp; run</span>
+    </div>
+    <div class="card-body">
+      <div class="config-grid">
+        <div class="field">
+          <label>Minimum days</label>
+          <input type="number" id="cfg-min-visits" value="10" min="1" max="31">
+        </div>
+        <div class="field">
+          <label>Minimum hours / day</label>
+          <input type="number" id="cfg-min-hours" value="1" min="0.1" max="12" step="0.5">
+        </div>
+        <div class="config-hint">
+          A plate qualifies when it appears on <strong>N or more separate days</strong>
+          with the first-to-last camera read spanning at least <strong>H hours</strong>,
+          has a valid payment on file, and received no citation that month.
+        </div>
+        <button class="run-btn" id="run-btn" onclick="runAnalysis()" disabled>
+          Run Analysis
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LOG ────────────────────────────────────────────────── -->
+  <div class="card hidden" id="section-log">
+    <div class="card-header">
+      <div class="card-step" style="background:#8A96A8">i</div>
+      <span class="card-title">Processing log</span>
+    </div>
+    <div class="card-body">
+      <div class="log-box" id="log-box"></div>
+    </div>
+  </div>
+
+  <!-- ── STEP 3: RESULTS ────────────────────────────────────── -->
+  <div id="section-results" class="hidden">
+    <div class="card-header" style="background:var(--card);border:1px solid var(--border);
+         border-radius:var(--radius-lg) var(--radius-lg) 0 0;border-bottom:none;padding:16px 24px;
+         margin-bottom:0;box-shadow:none;">
+      <div class="card-step">3</div>
+      <span class="card-title">Results</span>
+    </div>
+
+    <div class="funnel" id="funnel-cards"
+         style="border:1px solid var(--border);border-top:none;
+                border-radius:0 0 var(--radius-lg) var(--radius-lg);
+                padding:20px;background:var(--card);
+                box-shadow:var(--shadow-sm);margin-bottom:28px;">
+      <div class="funnel-card c-blue">
+        <div class="funnel-num" id="stat-stage1">—</div>
+        <div class="funnel-label">Passed visit threshold</div>
+        <div class="funnel-sub" id="stat-stage1-sub"></div>
+      </div>
+      <div class="funnel-card c-amber">
+        <div class="funnel-num" id="stat-stage2">—</div>
+        <div class="funnel-label">Valid payment or permit</div>
+        <div class="funnel-sub">after payment check</div>
+      </div>
+      <div class="funnel-card c-red">
+        <div class="funnel-num" id="stat-removed">—</div>
+        <div class="funnel-label">Removed — cited</div>
+        <div class="funnel-sub">had citation this month</div>
+      </div>
+      <div class="funnel-card c-green">
+        <div class="funnel-num" id="stat-final">—</div>
+        <div class="funnel-label">Final qualifiers</div>
+        <div class="funnel-sub">eligible for perk</div>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-card">
+      <div class="table-toolbar">
+        <span class="table-title" id="table-title">Qualifying plates</span>
+        <button class="download-btn" onclick="downloadExcel()">
+          ↓ Download Excel
+        </button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Plate</th>
+              <th>Name</th>
+              <th>Permit No.</th>
+              <th class="num">Days on Campus</th>
+              <th class="num">Avg Stay (hrs)</th>
+              <th>Payment Source</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  UBC Okanagan — Parking &amp; Sustainable Transportation — Internal Tool
+</footer>
+
+<script>
+// =============================================================================
+// STATE
+// =============================================================================
+const files = { reads: null, payments: null, citations: null };
+let results = [];   // final qualifying rows, kept for Excel export
+
+// =============================================================================
+// FILE UPLOAD HANDLERS
+// =============================================================================
+
+function onDragOver(e, key) {
+  e.preventDefault();
+  document.getElementById('card-' + key).classList.add('dragover');
+}
+
+function onDragLeave(key) {
+  document.getElementById('card-' + key).classList.remove('dragover');
+}
+
+function onDrop(e, key) {
+  e.preventDefault();
+  onDragLeave(key);
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(key, file);
+}
+
+function onFileSelect(e, key) {
+  const file = e.target.files[0];
+  if (file) loadFile(key, file);
+}
+
+function loadFile(key, file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    files[key] = { name: file.name, data: e.target.result };
+    markLoaded(key, file.name);
+    checkReady();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function markLoaded(key, filename) {
+  document.getElementById('card-'    + key).classList.add('loaded');
+  document.getElementById('icon-'    + key).textContent = '✅';
+  document.getElementById('hint-'    + key).textContent = 'File loaded';
+  const fn = document.getElementById('filename-' + key);
+  fn.textContent = filename;
+}
+
+function checkReady() {
+  document.getElementById('run-btn').disabled =
+    !(files.reads && files.payments && files.citations);
+}
+
+// =============================================================================
+// LOGGING
+// =============================================================================
+
+function log(msg, type = 'info') {
+  const box     = document.getElementById('log-box');
+  const symbols = { ok: '✓', warn: '▲', err: '✖', info: '→' };
+  const div     = document.createElement('div');
+  div.className = 'log-line ' + type;
+  div.innerHTML = `<span class="log-bullet">${symbols[type]}</span><span>${msg}</span>`;
+  box.appendChild(div);
+}
+
+function clearLog() {
+  document.getElementById('log-box').innerHTML = '';
+}
+
+// =============================================================================
+// PLATE NORMALISATION
+// =============================================================================
+// These are exact JS translations of the Python functions in parking_perks.py.
+// Same logic, same edge cases — different syntax.
+
+function normReads(raw) {
+  if (raw === null || raw === undefined || raw === '') return '';
+  return String(raw).trim().toUpperCase();
+}
+
+function normPayments(raw) {
+  if (raw === null || raw === undefined || raw === '') return '';
+  let s = String(raw).trim().toUpperCase();
+  // Strip ="..." wrapper that Excel adds to text fields
+  if (s.startsWith('="') && s.endsWith('"')) return s.slice(2, -1);
+  return s.replace(/^=?"?/, '').replace(/"$/, '');
+}
+
+function normCitations(raw) {
+  if (raw === null || raw === undefined || raw === '') return '';
+  const s = String(raw).trim().toUpperCase();
+  if (!s || s === 'LICENSE #' || s === 'LICENCE #') return '';
+  const parts = s.split('-').map(p => p.trim()).filter(p => p.length > 0);
+  if (parts.length === 3)  return parts[1];
+  if (parts.length  >  3)  return parts.slice(1, -1).join('');
+  if (parts.length === 1)  return parts[0];
+  return '';
+}
+
+// =============================================================================
+// TIMESTAMP PARSING — THE CRITICAL FIX
+// =============================================================================
+//
+// WHY WE CAN'T USE new Date() OR toISOString() FOR DATE GROUPING:
+//
+// The timestamps in the reads file are LOCAL time (PDT = UTC-7).
+// JavaScript's Date object always stores time in UTC internally.
+// When you call toISOString().slice(0,10) you get the UTC date, not local.
+//
+// Example of the bug this caused:
+//   Read at "04/30/2026, 7:00:00 PM" PDT
+//   = 04/30/2026 19:00 PDT
+//   = 05/01/2026 02:00 UTC
+//   toISOString().slice(0,10) = "2026-05-01"  ← WRONG! Should be 2026-04-30
+//
+// Any read at or after 5:00 PM PDT shifts to the next calendar day in UTC.
+// This caused 24% of all reads to be grouped under the wrong date,
+// costing 4 plates their qualifying status (52 Python → 48 JS).
+//
+// THE FIX: extract the date directly from the timestamp STRING.
+// "04/30/2026, 11:56:09 PM" → dateKey = "2026-04-30" (always correct)
+// We never let a Date object near the date grouping logic.
+//
+// parseTimestamp() returns { dateKey, ms }:
+//   dateKey  = "YYYY-MM-DD" string, extracted from the raw text
+//   ms       = milliseconds since epoch, used only for duration math
+//              (duration = ms difference, which is timezone-safe)
+// =============================================================================
+
+function parseTimestamp(raw) {
+  // Expected format: "04/30/2026, 11:56:09 PM"
+  // Regex groups:      month day  year  hour min sec ampm
+  const m = String(raw).match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)$/i
+  );
+
+  if (!m) return null;
+
+  const [, mo, dy, yr, rawHr, mi, sc, ampm] = m;
+
+  // Convert 12-hour to 24-hour
+  let hr = parseInt(rawHr, 10);
+  if (ampm.toUpperCase() === 'PM' && hr !== 12) hr += 12;
+  if (ampm.toUpperCase() === 'AM' && hr === 12) hr  =  0;
+
+  // Build the date key directly from the string parts — NO timezone conversion
+  const mm  = String(mo).padStart(2, '0');
+  const dd  = String(dy).padStart(2, '0');
+  const dateKey = `${yr}-${mm}-${dd}`;   // "2026-04-30" always correct
+
+  // Build a Date only for millisecond arithmetic (duration calculation).
+  // We pass it as UTC explicitly so it's consistent across machines.
+  const ms = Date.UTC(
+    parseInt(yr, 10),
+    parseInt(mo, 10) - 1,  // month is 0-indexed in JS
+    parseInt(dy, 10),
+    hr,
+    parseInt(mi, 10),
+    parseInt(sc, 10)
+  );
+
+  return { dateKey, ms };
+}
+
+// =============================================================================
+// FILE PARSERS
+// =============================================================================
+
+function parseExcelToRows(arrayBuffer, headerRowIndex) {
+  // SheetJS reads the binary Excel file into a workbook object.
+  // header:1 gives us an array of arrays so we can pick our own header row.
+  const wb  = XLSX.read(arrayBuffer, { type: 'array', cellDates: false });
+  const ws  = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  if (raw.length <= headerRowIndex) return [];
+
+  const headers = raw[headerRowIndex].map(h => String(h).trim());
+
+  // Build one object per data row using header names as keys
+  return raw.slice(headerRowIndex + 1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = row[i] ?? ''; });
+    return obj;
+  });
+}
+
+function parseCsv(arrayBuffer) {
+  const text  = new TextDecoder('utf-8').decode(arrayBuffer);
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length === 0) return [];
+
+  // CSV parser that handles quoted fields (like ="SK041H")
+  const parseRow = (line) => {
+    const cols = []; let cur = '', inQ = false;
+    for (const ch of line) {
+      if (ch === '"')              { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur); cur = ''; }
+      else                         { cur += ch; }
+    }
+    cols.push(cur);
+    return cols;
+  };
+
+  const headers = parseRow(lines[0]).map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const cols = parseRow(line);
+    const obj  = {};
+    headers.forEach((h, i) => { obj[h] = (cols[i] ?? '').trim(); });
+    return obj;
+  });
+}
+
+// Find a column by keyword — same concept as find_column() in the Python script
+function findCol(obj, keywords) {
+  return Object.keys(obj).find(
+    k => keywords.some(kw => k.toLowerCase().includes(kw))
+  ) || null;
+}
+
+// =============================================================================
+// CORE ANALYSIS
+// =============================================================================
+
+function runAnalysis() {
+  clearLog();
+  document.getElementById('section-log').classList.remove('hidden');
+  document.getElementById('section-results').classList.add('hidden');
+  results = [];
+
+  const minVisits = parseInt(document.getElementById('cfg-min-visits').value)  || 10;
+  const minHours  = parseFloat(document.getElementById('cfg-min-hours').value) || 1.0;
+  const minMs     = minHours * 3600 * 1000;   // convert hours → milliseconds for duration math
+
+  try {
+    // ── LOAD PLATE READS ────────────────────────────────────────────────
+    log('Loading plate reads...');
+    const readsRows = parseExcelToRows(files.reads.data, 1);
+    // header row index 1 = skip the "Report created: ..." row at the top
+
+    const sample     = readsRows[0] || {};
+    const plateColR  = findCol(sample, ['plate number', 'plate']);
+    const timeColR   = findCol(sample, ['local time', 'local_time']);
+
+    if (!plateColR || !timeColR) {
+      log('Could not find plate/time columns. Available: ' + Object.keys(sample).join(', '), 'err');
+      return;
+    }
+
+    // Parse into clean objects + deduplicate same plate+millisecond
+    const seen  = new Set();
+    const reads = [];
+
+    for (const row of readsRows) {
+      const plate = normReads(row[plateColR]);
+      if (!plate || plate === '-') continue;
+
+      const parsed = parseTimestamp(row[timeColR]);
+      if (!parsed) continue;
+
+      const key = plate + '|' + parsed.ms;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      reads.push({ plate, dateKey: parsed.dateKey, ms: parsed.ms });
+    }
+
+    log(`Plate reads: ${reads.length.toLocaleString()} cleaned rows`, 'ok');
+
+    // Check coverage
+    const allDates    = new Set(reads.map(r => r.dateKey));
+    const coverageDays = allDates.size;
+
+    if (coverageDays < minVisits) {
+      log(
+        `Warning: reads file covers ${coverageDays} unique dates but threshold is ${minVisits}. ` +
+        `Set "Minimum days" to ${coverageDays} to test with this file.`,
+        'warn'
+      );
+    }
+
+    // ── LOAD PAYMENTS ────────────────────────────────────────────────────
+    log('Loading payments...');
+    const payRows  = parseCsv(files.payments.data);
+    const sampleP  = payRows[0] || {};
+    const plateColP = findCol(sampleP, ['license plate', 'licence plate', 'plate']);
+
+    if (!plateColP) {
+      log('Could not find plate column in payments. Available: ' + Object.keys(sampleP).join(', '), 'err');
+      return;
+    }
+
+    const paidPlates = new Set(
+      payRows.map(r => normPayments(r[plateColP])).filter(p => p)
+    );
+    log(`Payments: ${paidPlates.size.toLocaleString()} unique plates`, 'ok');
+
+    // ── LOAD CITATIONS ────────────────────────────────────────────────────
+    log('Loading citations...');
+    const citRows   = parseExcelToRows(files.citations.data, 9);
+    // header row index 9 = skip the 9 rows of report metadata at the top
+
+    const sampleC   = citRows[0] || {};
+    const plateColC = findCol(sampleC, ['license #', 'licence #', 'license', 'licence', 'plate']);
+
+    if (!plateColC) {
+      log('Could not find plate column in citations. Available: ' + Object.keys(sampleC).join(', '), 'err');
+      return;
+    }
+
+    const citedPlates = new Set(
+      citRows.map(r => normCitations(r[plateColC])).filter(p => p)
+    );
+    log(`Citations: ${citedPlates.size.toLocaleString()} unique plates`, 'ok');
+
+    // ── STAGE 1: VISIT BEHAVIOUR ─────────────────────────────────────────
+    log(`Stage 1 — plates with ${minVisits}+ days of ${minHours}+ hr...`);
+
+    // Group reads into:  plateMap → dateKey → array of { ms }
+    // plateMap is a Map of Maps — JS equivalent of pandas groupby(['plate','date'])
+    const plateMap = new Map();
+
+    for (const { plate, dateKey, ms } of reads) {
+      if (!plateMap.has(plate)) plateMap.set(plate, new Map());
+      const dayMap = plateMap.get(plate);
+      if (!dayMap.has(dateKey)) dayMap.set(dateKey, []);
+      dayMap.get(dateKey).push(ms);
+    }
+
+    // For each plate, count days where first-to-last span >= minMs
+    const stage1 = [];
+
+    plateMap.forEach((dayMap, plate) => {
+      let qualDays = 0, totalMs = 0;
+
+      dayMap.forEach((msList) => {
+        const firstMs = Math.min(...msList);
+        const lastMs  = Math.max(...msList);
+        const spanMs  = lastMs - firstMs;
+
+        if (spanMs >= minMs) {
+          qualDays++;
+          totalMs += spanMs;
+        }
+      });
+
+      if (qualDays >= minVisits) {
+        stage1.push({
+          plate,
+          qualifying_days: qualDays,
+          avg_hours: (totalMs / qualDays) / 1000 / 3600,
+        });
+      }
+    });
+
+    log(`Stage 1: ${stage1.length.toLocaleString()} plates qualify`, 'ok');
+
+    // ── STAGE 2: VALID PAYMENT ───────────────────────────────────────────
+    log('Stage 2 — cross-referencing payments...');
+    const stage2 = stage1.filter(r => paidPlates.has(r.plate));
+    log(`Stage 2: ${stage2.length.toLocaleString()} plates have valid payment`, 'ok');
+
+    // ── STAGE 3: NO CITATIONS ────────────────────────────────────────────
+    log('Stage 3 — removing cited plates...');
+    const stage3 = stage2.filter(r => !citedPlates.has(r.plate));
+    const removed = stage2.length - stage3.length;
+    log(`Stage 3: ${removed} removed, ${stage3.length.toLocaleString()} final qualifiers`, 'ok');
+
+    // Sort by most days first
+    stage3.sort((a, b) => b.qualifying_days - a.qualifying_days);
+
+    results = stage3;
+    renderResults(stage1.length, stage2.length, removed, stage3, minVisits, minHours);
+
+  } catch (err) {
+    log('Unexpected error: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+// =============================================================================
+// RENDER
+// =============================================================================
+
+function renderResults(s1, s2, removed, qualifiers, minVisits, minHours) {
+  document.getElementById('stat-stage1').textContent     = s1.toLocaleString();
+  document.getElementById('stat-stage1-sub').textContent = `${minVisits}+ days, ${minHours}+ hr`;
+  document.getElementById('stat-stage2').textContent     = s2.toLocaleString();
+  document.getElementById('stat-removed').textContent    = removed.toLocaleString();
+  document.getElementById('stat-final').textContent      = qualifiers.length.toLocaleString();
+
+  document.getElementById('table-title').textContent =
+    `Qualifying plates — ${qualifiers.length} result${qualifiers.length !== 1 ? 's' : ''}`;
+
+  const tbody = document.getElementById('results-body');
+  tbody.innerHTML = '';
+
+  if (qualifiers.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="7" style="text-align:center;padding:48px;color:var(--text-3);font-size:14px;">
+      No plates met all three criteria with the current settings.
+    </td>`;
+    tbody.appendChild(tr);
+  } else {
+    qualifiers.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="rank">${i + 1}</td>
+        <td class="plate-col">${row.plate}</td>
+        <td style="color:var(--text-2)">${row.name || ''}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text-3)">${row.permit_number || ''}</td>
+        <td class="num">${row.qualifying_days}</td>
+        <td class="num">${row.avg_hours.toFixed(1)}</td>
+        <td><span class="badge badge-payment">Payment</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('section-results').classList.remove('hidden');
+}
+
+// =============================================================================
+// EXCEL DOWNLOAD
+// =============================================================================
+
+function downloadExcel() {
+  if (results.length === 0) return;
+
+  const wb = XLSX.utils.book_new();
+
+  const wsData = [
+    ['#', 'Plate Number', 'Name', 'Permit Number', 'Days on Campus', 'Avg Stay (hrs)', 'Payment Source'],
+    ...results.map((r, i) => [
+      i + 1,
+      r.plate,
+      r.name || '',
+      r.permit_number || '',
+      r.qualifying_days,
+      parseFloat(r.avg_hours.toFixed(1)),
+      'Payment',
+    ])
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [
+    { wch: 5 }, { wch: 16 }, { wch: 28 },
+    { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 14 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Parking Perks Qualifiers');
+
+  const today = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `Parking_Perks_${today}.xlsx`);
+}
+</script>
+</body>
+</html>
