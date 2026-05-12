@@ -1,2 +1,4 @@
 # Ignore all files in the test-data directory
 /test-data/*
+
+CLAUDE.md
