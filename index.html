@@ -423,7 +423,7 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
 
 </main>
 
-<footer>UBC Okanagan — Parking &amp; Sustainable Transportation — Internal Tool</footer>
+<footer>UBC Okanagan — Parking Services — Internal Tool</footer>
 
 <script>
 // =============================================================================
@@ -505,6 +505,7 @@ function escapeHtml(v) {
 function normReads(raw) {
   if (raw == null || raw === '') return '';
   return String(raw).trim().toUpperCase();
+
 }
 function normPayments(raw) {
   if (raw == null || raw === '') return '';
@@ -617,8 +618,8 @@ function runAnalysis() {
     log('Reading plate reads...');
     const readsRows = parseExcelToRows(files.reads.data, 1);
     const sampleR   = readsRows[0] || {};
-    const plateColR = findCol(sampleR, ['plate number','plate']);
-    const timeColR  = findCol(sampleR, ['local time','local_time']);
+    const plateColR = findCol(sampleR, ['plate number','plate', 'Plate read']);
+    const timeColR  = findCol(sampleR, ['local time','local_time', 'Read timestamp']);
     if (!plateColR || !timeColR) {
       log('Missing plate or time columns. Found: ' + Object.keys(sampleR).join(', '), 'err'); return;
     }
