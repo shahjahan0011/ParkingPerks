@@ -18,6 +18,7 @@
   --green:     #1A7A4A;
   --green-bg:  #EAF5EF;
   --red:       #C0392B;
+  --red-bg:    #FDEDED;
   --amber:     #B45309;
   --amber-bg:  #FEF3C7;
   --text-1:    #1A1F36;
@@ -29,12 +30,9 @@
   --radius:    8px;
   --radius-lg: 12px;
 }
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 body { background: var(--bg); color: var(--text-1); font-family: var(--sans); font-size: 15px; line-height: 1.6; min-height: 100vh; }
 
-/* ── HEADER ── */
 header { background: var(--ubc-navy); border-bottom: 3px solid var(--ubc-gold); padding: 0 48px; }
 .header-inner { align-items: center; display: flex; margin: 0 auto; max-width: 1060px; }
 .ubc-wordmark { border-right: 1px solid rgba(255,255,255,0.16); display: flex; flex-direction: column; justify-content: center; padding: 18px 28px 18px 0; }
@@ -44,17 +42,14 @@ header { background: var(--ubc-navy); border-bottom: 3px solid var(--ubc-gold); 
 .dept-name { color: #fff; font-size: 14px; font-weight: 600; line-height: 1.2; }
 .dept-sub { color: rgba(255,255,255,0.58); font-size: 11px; letter-spacing: 0.03em; margin-top: 3px; }
 
-/* ── PAGE TITLE ── */
 .page-title-strip { background: var(--card); border-bottom: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 24px 48px; }
 .page-title-inner { align-items: center; display: flex; justify-content: space-between; margin: 0 auto; max-width: 1060px; gap: 24px; }
 h1 { color: var(--ubc-navy); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 .page-title-strip p { color: var(--text-3); font-size: 13px; margin: 2px 0 0; }
 .title-badge { background: var(--ubc-navy); border-radius: 4px; color: var(--ubc-gold); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; padding: 4px 12px; text-transform: uppercase; white-space: nowrap; }
 
-/* ── MAIN ── */
 main { margin: 0 auto; max-width: 1060px; padding: 36px 48px 80px; }
 
-/* ── CARDS ── */
 .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); margin-bottom: 28px; overflow: hidden; }
 .card-header { align-items: center; border-bottom: 1px solid var(--border-lt); display: flex; gap: 10px; padding: 16px 24px; }
 .card-step { background: var(--ubc-navy); border-radius: 50%; color: #fff; display: grid; flex-shrink: 0; font-size: 12px; font-weight: 700; height: 24px; place-items: center; width: 24px; }
@@ -62,13 +57,13 @@ main { margin: 0 auto; max-width: 1060px; padding: 36px 48px 80px; }
 .card-title { color: var(--ubc-navy); font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
 .card-body { padding: 24px; }
 
-/* ── UPLOAD ── */
-.upload-grid { display: grid; gap: 16px; grid-template-columns: repeat(3,1fr); }
+/* Upload */
+.upload-grid { display: grid; gap: 16px; grid-template-columns: repeat(2,1fr); }
 .upload-zone { background: var(--bg); border: 2px dashed var(--border); border-radius: var(--radius); cursor: pointer; padding: 24px 16px; position: relative; text-align: center; transition: border-color 0.15s, background 0.15s; }
 .upload-zone:hover, .upload-zone.dragover { background: #EBF2FC; border-color: var(--ubc-blue); }
 .upload-zone.loaded { background: var(--green-bg); border-color: var(--green); border-style: solid; }
 .upload-zone input[type="file"] { cursor: pointer; height: 100%; inset: 0; opacity: 0; position: absolute; width: 100%; }
-.upload-icon-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-sm); display: grid; font-size: 15px; font-weight: 700; color: var(--text-2); height: 44px; margin: 0 auto 12px; place-items: center; transition: border-color 0.15s; width: 44px; }
+.upload-icon-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-sm); color: var(--text-2); display: grid; font-size: 15px; font-weight: 700; height: 44px; margin: 0 auto 12px; place-items: center; width: 44px; }
 .upload-zone.loaded .upload-icon-wrap { border-color: var(--green); color: var(--green); }
 .upload-zone-title { color: var(--text-1); font-size: 13px; font-weight: 600; margin-bottom: 3px; }
 .upload-zone-ext { color: var(--text-3); font-family: var(--mono); font-size: 11px; margin-bottom: 10px; }
@@ -77,26 +72,35 @@ main { margin: 0 auto; max-width: 1060px; padding: 36px 48px 80px; }
 .upload-filename { color: var(--green); display: none; font-family: var(--mono); font-size: 11px; margin-top: 6px; word-break: break-all; }
 .upload-zone.loaded .upload-filename { display: block; }
 
-/* ── CONFIG ── */
+/* Config */
 .config-grid { align-items: end; display: grid; gap: 24px; grid-template-columns: auto auto 1fr auto; }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field label { color: var(--text-2); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
-.field input { background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius); color: var(--text-1); font-family: var(--sans); font-size: 15px; font-weight: 600; outline: none; padding: 9px 14px; transition: border-color 0.15s, box-shadow 0.15s; width: 110px; }
+.field input[type="number"], .field input[type="text"], .field input[type="password"] {
+  background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius);
+  color: var(--text-1); font-family: var(--sans); font-size: 15px; font-weight: 600;
+  outline: none; padding: 9px 14px; transition: border-color 0.15s, box-shadow 0.15s; width: 110px;
+}
 .field input:focus { border-color: var(--ubc-blue); box-shadow: 0 0 0 3px rgba(0,85,183,0.1); }
 .config-hint { color: var(--text-3); font-size: 12px; line-height: 1.6; padding-bottom: 2px; }
 
-/* ── BUTTONS ── */
-.run-btn, .download-btn { border-radius: var(--radius); cursor: pointer; font-family: var(--sans); font-weight: 600; transition: background 0.15s, color 0.15s, transform 0.1s; white-space: nowrap; }
-.run-btn { background: var(--ubc-navy); border: none; color: #fff; font-size: 14px; letter-spacing: 0.01em; padding: 10px 28px; }
-.run-btn:hover:not(:disabled) { background: var(--ubc-navy-2); }
-.run-btn:active:not(:disabled) { transform: scale(0.98); }
-.run-btn:disabled, .download-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+/* Buttons */
+.run-btn, .draw-btn { background: var(--ubc-navy); border: none; border-radius: var(--radius); color: #fff; cursor: pointer; font-family: var(--sans); font-size: 14px; font-weight: 600; letter-spacing: 0.01em; padding: 10px 28px; transition: background 0.15s, transform 0.1s; white-space: nowrap; }
+.run-btn:hover:not(:disabled), .draw-btn:hover:not(:disabled) { background: var(--ubc-navy-2); }
+.run-btn:active:not(:disabled), .draw-btn:active:not(:disabled) { transform: scale(0.98); }
+.run-btn:disabled, .draw-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.download-btn { align-items: center; background: var(--card); border: 1.5px solid var(--ubc-blue); border-radius: var(--radius); color: var(--ubc-blue); cursor: pointer; display: flex; font-family: var(--sans); font-size: 12px; font-weight: 600; gap: 6px; padding: 7px 16px; transition: background 0.15s, color 0.15s; }
+.download-btn:hover:not(:disabled) { background: var(--ubc-blue); color: #fff; }
+.download-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.redraw-btn { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); color: var(--text-2); cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 8px 20px; transition: all 0.15s; }
+.redraw-btn:hover { border-color: var(--text-3); color: var(--text-1); }
+.redraw-btn.confirming { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
 
-/* ── WARNING BANNER ── */
+/* Warning */
 .warning-banner { align-items: flex-start; background: var(--amber-bg); border: 1px solid #FCD34D; border-radius: var(--radius); color: var(--amber); display: none; font-size: 13px; gap: 10px; margin-top: 16px; padding: 12px 16px; }
 .warning-banner.show { display: flex; }
 
-/* ── LOG ── */
+/* Log */
 .log-box { background: #F8FAFC; border: 1px solid var(--border-lt); border-radius: var(--radius); color: var(--text-2); font-family: var(--mono); font-size: 12px; line-height: 1.9; padding: 16px 20px; }
 .log-line { align-items: baseline; display: flex; gap: 10px; }
 .log-bullet { flex-shrink: 0; font-size: 14px; }
@@ -105,7 +109,7 @@ main { margin: 0 auto; max-width: 1060px; padding: 36px 48px 80px; }
 .log-line.err  .log-bullet { color: var(--red); }
 .log-line.info .log-bullet { color: var(--ubc-blue); }
 
-/* ── FUNNEL ── */
+/* Funnel */
 .funnel { display: grid; gap: 16px; grid-template-columns: repeat(4,1fr); padding: 20px; }
 .funnel-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); border-top: 3px solid var(--border); box-shadow: var(--shadow-sm); padding: 20px; }
 .funnel-card.c-blue  { border-top-color: var(--ubc-blue); }
@@ -120,13 +124,11 @@ main { margin: 0 auto; max-width: 1060px; padding: 36px 48px 80px; }
 .funnel-label { color: var(--text-1); font-size: 13px; font-weight: 600; line-height: 1.3; }
 .funnel-sub { color: var(--text-3); font-size: 11px; margin-top: 5px; }
 
-/* ── TABLE ── */
+/* Table */
 .table-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
 .table-toolbar { align-items: center; background: #FAFBFC; border-bottom: 1px solid var(--border-lt); display: flex; justify-content: space-between; padding: 14px 20px; }
 .table-title { color: var(--ubc-navy); font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
-.download-btn { align-items: center; background: var(--card); border: 1.5px solid var(--ubc-blue); color: var(--ubc-blue); display: flex; font-size: 12px; gap: 6px; padding: 7px 16px; }
-.download-btn:hover:not(:disabled) { background: var(--ubc-blue); color: #fff; }
-.table-scroll { max-height: 520px; overflow: auto; }
+.table-scroll { max-height: 460px; overflow: auto; }
 table { border-collapse: collapse; font-size: 13px; width: 100%; }
 thead { position: sticky; top: 0; z-index: 2; }
 thead th { background: #F1F4F8; border-bottom: 1px solid var(--border); color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; padding: 10px 16px; text-align: left; text-transform: uppercase; white-space: nowrap; }
@@ -138,21 +140,64 @@ tbody td { color: var(--text-1); padding: 11px 16px; vertical-align: middle; }
 td.num { color: var(--text-2); font-family: var(--mono); font-size: 12px; text-align: right; }
 td.plate-col { color: var(--ubc-navy); font-family: var(--mono); font-size: 13px; font-weight: 700; }
 td.rank { color: var(--text-3); font-family: var(--mono); font-size: 12px; }
+td.email-col { color: var(--ubc-blue); font-size: 12px; }
 .badge { align-items: center; border-radius: 4px; display: inline-flex; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 9px; text-transform: uppercase; }
 .badge-payment { background: #EBF4FF; color: var(--ubc-blue); }
 .badge-permit  { background: var(--green-bg); color: var(--green); }
 
-.hidden { display: none !important; }
+/* Draw */
+.draw-config { align-items: end; display: flex; gap: 20px; margin-bottom: 8px; }
+.draw-pool-note { color: var(--text-3); font-size: 12px; }
 
-/* ── FOOTER ── */
+/* Approval prompt */
+.approval-prompt { background: var(--amber-bg); border: 1px solid #FCD34D; border-radius: var(--radius); margin-top: 20px; padding: 16px 20px; }
+.approval-prompt p { color: var(--amber); font-size: 13px; margin-bottom: 12px; }
+.approval-row { align-items: center; display: flex; gap: 10px; flex-wrap: wrap; }
+.approval-row input { background: var(--card); border: 1.5px solid #FCD34D; border-radius: var(--radius); color: var(--text-1); font-family: var(--mono); font-size: 14px; outline: none; padding: 8px 12px; transition: border-color 0.15s; width: 200px; }
+.approval-row input:focus { border-color: var(--amber); }
+.approval-confirm-btn { background: var(--amber); border: none; border-radius: var(--radius); color: #fff; cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 9px 18px; transition: opacity 0.15s; }
+.approval-confirm-btn:hover { opacity: 0.85; }
+.approval-cancel-btn { background: none; border: 1.5px solid var(--border); border-radius: var(--radius); color: var(--text-2); cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 600; padding: 9px 18px; transition: border-color 0.15s; }
+.approval-cancel-btn:hover { border-color: var(--text-3); }
+.approval-error { color: var(--red); font-size: 12px; font-weight: 600; margin-top: 8px; }
+
+/* Winners */
+.winner-display { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+.winner-card { align-items: center; background: #F8FCF9; border: 1.5px solid var(--green); border-radius: var(--radius-lg); display: flex; gap: 16px; padding: 16px 20px; }
+.winner-num { background: var(--green); border-radius: 50%; color: #fff; display: grid; flex-shrink: 0; font-size: 13px; font-weight: 700; height: 32px; place-items: center; width: 32px; }
+.winner-info { flex: 1; }
+.winner-plate { color: var(--ubc-navy); font-family: var(--mono); font-size: 20px; font-weight: 700; letter-spacing: 0.04em; line-height: 1; }
+.winner-name { color: var(--text-2); font-size: 13px; margin-top: 4px; }
+.winner-email { color: var(--ubc-blue); font-size: 12px; margin-top: 2px; }
+.draw-actions { align-items: center; display: flex; gap: 16px; margin-top: 20px; }
+.draw-note { color: var(--text-3); font-size: 12px; }
+
+/* History */
+.history-list { padding: 4px 0; }
+.history-entry { border-bottom: 1px solid var(--border-lt); padding: 16px 24px; }
+.history-entry:last-child { border-bottom: none; }
+.history-meta { align-items: center; display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
+.history-month { color: var(--ubc-navy); font-size: 13px; font-weight: 700; }
+.history-date { color: var(--text-3); font-size: 12px; }
+.history-count { background: var(--green-bg); border-radius: 4px; color: var(--green); font-size: 11px; font-weight: 700; padding: 2px 8px; }
+.history-winners { display: flex; flex-direction: column; gap: 6px; }
+.history-winner { align-items: center; display: flex; gap: 10px; flex-wrap: wrap; }
+.history-plate { color: var(--ubc-navy); font-family: var(--mono); font-size: 13px; font-weight: 700; min-width: 90px; }
+.history-name { color: var(--text-2); font-size: 12px; }
+.history-email { color: var(--ubc-blue); font-size: 12px; }
+.history-empty { color: var(--text-3); font-size: 13px; padding: 24px; text-align: center; }
+.history-toolbar { align-items: center; display: flex; justify-content: space-between; width: 100%; }
+.clear-btn { background: none; border: none; color: var(--text-3); cursor: pointer; font-family: var(--sans); font-size: 12px; padding: 0; text-decoration: underline; }
+.clear-btn:hover { color: var(--red); }
+
+.hidden { display: none !important; }
 footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); color: rgba(255,255,255,0.48); font-size: 12px; margin-top: 60px; padding: 20px 48px; text-align: center; }
 
-/* ── RESPONSIVE ── */
 @media (max-width: 900px) {
   header, .page-title-strip, main, footer { padding-left: 24px; padding-right: 24px; }
+  .page-title-inner, .config-grid, .upload-grid, .funnel { grid-template-columns: 1fr; }
   .page-title-inner { align-items: flex-start; flex-direction: column; }
-  .config-grid, .upload-grid, .funnel { grid-template-columns: 1fr; }
-  .run-btn { width: 100%; }
+  .run-btn, .draw-btn { width: 100%; }
 }
 </style>
 </head>
@@ -175,7 +220,7 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
   <div class="page-title-inner">
     <div>
       <h1>Parking Perks — Monthly Qualifier Tool</h1>
-      <p>Upload the monthly reports, run the checks, and download the qualifying plate list.</p>
+      <p>Upload all four monthly files, run the checks, and draw this month's winners.</p>
     </div>
     <span class="title-badge">Internal Use Only</span>
   </div>
@@ -222,6 +267,16 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
           <div class="upload-filename" id="filename-citations"></div>
         </div>
 
+        <div class="upload-zone" id="card-permits"
+             ondragover="onDragOver(event,'permits')" ondragleave="onDragLeave('permits')" ondrop="onDrop(event,'permits')">
+          <input type="file" accept=".txt,.csv,.xlsx" id="input-permits" onchange="onFileSelect(event,'permits')">
+          <div class="upload-icon-wrap" id="icon-permits">4</div>
+          <div class="upload-zone-title">Active Permit Holders</div>
+          <div class="upload-zone-ext">.txt / .csv / .xlsx</div>
+          <div class="upload-zone-hint" id="hint-permits">Click or drag file here</div>
+          <div class="upload-filename" id="filename-permits"></div>
+        </div>
+
       </div>
     </div>
   </section>
@@ -243,9 +298,8 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
           <input type="number" id="cfg-min-hours" value="1" min="0.1" max="24" step="0.5">
         </div>
         <div class="config-hint">
-          A plate qualifies when it appears on enough separate days, has a first-to-last
-          read span of at least the minimum hours on each qualifying day, has payment on
-          file, and has no citation that month.
+          <strong>Payment track:</strong> N+ separate days (each ≥ H hrs), valid payment, no citation.<br>
+          <strong>Permit track:</strong> active permit + no citation. No visit threshold applies.
         </div>
         <button class="run-btn" id="run-btn" onclick="runAnalysis()" disabled>Run Checks</button>
       </div>
@@ -266,7 +320,6 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
 
   <!-- Step 3: Results -->
   <section id="section-results" class="hidden">
-
     <div class="card" style="margin-bottom:16px">
       <div class="card-header">
         <div class="card-step">3</div>
@@ -280,8 +333,8 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
         </div>
         <div class="funnel-card c-amber">
           <div class="funnel-num" id="stat-stage2">—</div>
-          <div class="funnel-label">Had valid payment</div>
-          <div class="funnel-sub">after payment check</div>
+          <div class="funnel-label">Valid payment/permit</div>
+          <div class="funnel-sub" id="stat-stage2-sub"></div>
         </div>
         <div class="funnel-card c-red">
           <div class="funnel-num" id="stat-removed">—</div>
@@ -290,18 +343,16 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
         </div>
         <div class="funnel-card c-green">
           <div class="funnel-num" id="stat-final">—</div>
-          <div class="funnel-label">Final qualifiers</div>
-          <div class="funnel-sub">eligible for perk</div>
+          <div class="funnel-label">Final draw pool</div>
+          <div class="funnel-sub" id="stat-final-sub"></div>
         </div>
       </div>
     </div>
 
-    <div class="table-card">
+    <div class="table-card" style="margin-bottom:28px">
       <div class="table-toolbar">
         <span class="table-title" id="table-title">Qualifying plates</span>
-        <button class="download-btn" id="download-btn" onclick="downloadExcel()" disabled>
-          ↓ Download Excel
-        </button>
+        <button class="download-btn" id="download-btn" onclick="downloadExcel()" disabled>↓ Download Excel</button>
       </div>
       <div class="table-scroll">
         <table>
@@ -310,17 +361,64 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
               <th>#</th>
               <th>Plate</th>
               <th>Name</th>
+              <th>Email</th>
               <th>Permit No.</th>
               <th class="num">Qualifying Days</th>
-              <th class="num">Avg Stay (hrs)</th>
-              <th>Payment Source</th>
+              <th>Track</th>
             </tr>
           </thead>
           <tbody id="results-body"></tbody>
         </table>
       </div>
     </div>
+  </section>
 
+  <!-- Step 4: Draw -->
+  <section class="card hidden" id="section-draw">
+    <div class="card-header">
+      <div class="card-step">4</div>
+      <span class="card-title">Draw winners</span>
+    </div>
+    <div class="card-body">
+      <div class="draw-config">
+        <div class="field">
+          <label for="cfg-winner-count">Number of winners</label>
+          <input type="number" id="cfg-winner-count" value="1" min="1" max="50">
+        </div>
+        <button class="draw-btn" id="draw-btn" onclick="executeDraw()">Draw</button>
+      </div>
+      <p class="draw-pool-note" id="draw-pool-note"></p>
+
+      <!-- Manager approval prompt — shown when a draw already exists for this month -->
+      <div class="approval-prompt hidden" id="approval-prompt">
+        <p id="approval-message"></p>
+        <div class="approval-row">
+          <input type="password" id="approval-code-input" placeholder="Manager approval code"
+                 onkeydown="if(event.key==='Enter') validateApprovalCode()">
+          <button class="approval-confirm-btn" onclick="validateApprovalCode()">Confirm</button>
+          <button class="approval-cancel-btn" onclick="cancelApproval()">Cancel</button>
+        </div>
+        <div class="approval-error hidden" id="approval-error">Incorrect code. Please try again.</div>
+      </div>
+
+      <div class="winner-display hidden" id="winner-display"></div>
+      <div class="draw-actions hidden" id="draw-actions">
+        <button class="redraw-btn" id="redraw-btn" onclick="handleRedraw()">Re-draw</button>
+        <span class="draw-note" id="redraw-note"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Winner History -->
+  <section class="card" id="section-history">
+    <div class="card-header">
+      <div class="card-step info">H</div>
+      <div class="history-toolbar">
+        <span class="card-title">Winner history</span>
+        <button class="clear-btn" onclick="clearHistory()">Clear all</button>
+      </div>
+    </div>
+    <div id="history-list" class="history-list"></div>
   </section>
 
 </main>
@@ -329,34 +427,41 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
 
 <script>
 // =============================================================================
+// CONFIGURATION
+// =============================================================================
+
+// Manager approval code required to re-draw a month that already has a
+// recorded draw. Change this before distributing.
+// NOTE: When this app moves to a server, this code must live server-side —
+//       never store secrets in client-facing code in production.
+const MANAGER_CODE = 'UBCO-PERKS-2025';
+
+// Permit series to exclude from the draw.
+// BIKE = bicycle permits (no car plate, not relevant to parking perks).
+// Add other series here if needed (e.g. 'LEDCOR' for contractor permits).
+const EXCLUDED_SERIES = new Set(['BIKE']);
+
+const HISTORY_KEY = 'parking_perks_winner_history';
+
+// =============================================================================
 // STATE
 // =============================================================================
-const files = { reads: null, payments: null, citations: null };
-let results = [];
-let lastRunSummary = null;   // captured at run time, used for Excel summary sheet
+const files = { reads: null, payments: null, citations: null, permits: null };
+let results        = [];
+let lastRunSummary = null;
+let pendingDrawCallback = null;   // stored while waiting for approval code
 
 // =============================================================================
-// FILE UPLOAD HANDLERS
+// FILE UPLOAD
 // =============================================================================
-
 function onDragOver(e, key) { e.preventDefault(); document.getElementById('card-' + key).classList.add('dragover'); }
 function onDragLeave(key)   { document.getElementById('card-' + key).classList.remove('dragover'); }
-
-function onDrop(e, key) {
-  e.preventDefault();
-  onDragLeave(key);
-  const file = e.dataTransfer.files[0];
-  if (file) loadFile(key, file);
-}
-
-function onFileSelect(e, key) {
-  const file = e.target.files[0];
-  if (file) loadFile(key, file);
-}
+function onDrop(e, key)     { e.preventDefault(); onDragLeave(key); const f = e.dataTransfer.files[0]; if (f) loadFile(key, f); }
+function onFileSelect(e, key) { const f = e.target.files[0]; if (f) loadFile(key, f); }
 
 function loadFile(key, file) {
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = e => {
     files[key] = { name: file.name, data: e.target.result };
     markLoaded(key, file.name);
     checkReady();
@@ -371,17 +476,16 @@ function markLoaded(key, filename) {
   document.getElementById('filename-' + key).textContent = filename;
 }
 
+// All four files are required before enabling Run.
 function checkReady() {
   document.getElementById('run-btn').disabled =
-    !(files.reads && files.payments && files.citations);
+    !(files.reads && files.payments && files.citations && files.permits);
 }
 
 // =============================================================================
 // LOGGING
 // =============================================================================
-
 function clearLog() { document.getElementById('log-box').innerHTML = ''; }
-
 function log(msg, type = 'info') {
   const symbols = { ok: '✓', warn: '!', err: 'x', info: '›' };
   const div = document.createElement('div');
@@ -389,67 +493,51 @@ function log(msg, type = 'info') {
   div.innerHTML = `<span class="log-bullet">${symbols[type]}</span><span>${escapeHtml(msg)}</span>`;
   document.getElementById('log-box').appendChild(div);
 }
-
-// =============================================================================
-// SECURITY — escape HTML before inserting any user-derived text into the DOM
-// =============================================================================
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, c =>
+function escapeHtml(v) {
+  return String(v).replace(/[&<>"']/g, c =>
     ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c])
   );
 }
 
 // =============================================================================
-// PLATE NORMALISATION
+// PLATE NORMALISATION — one function per file format
 // =============================================================================
-// Three separate functions — one per file — because each file stores the same
-// physical plate in a different format. See parking_perks.py for full comments.
-
 function normReads(raw) {
-  if (raw === null || raw === undefined || raw === '') return '';
+  if (raw == null || raw === '') return '';
   return String(raw).trim().toUpperCase();
 }
-
 function normPayments(raw) {
-  if (raw === null || raw === undefined || raw === '') return '';
+  if (raw == null || raw === '') return '';
   const s = String(raw).trim().toUpperCase();
   if (s.startsWith('="') && s.endsWith('"')) return s.slice(2, -1);
   return s.replace(/^=?"?/, '').replace(/"$/, '');
 }
-
 function normCitations(raw) {
-  if (raw === null || raw === undefined || raw === '') return '';
+  if (raw == null || raw === '') return '';
   const s = String(raw).trim().toUpperCase();
   if (!s || s === 'LICENSE #' || s === 'LICENCE #') return '';
   const parts = s.split('-').map(p => p.trim()).filter(p => p.length > 0);
   if (parts.length === 3) return parts[1];
-  if (parts.length  >  3) return parts.slice(1, -1).join('');
+  if (parts.length  >  3) return parts.slice(1,-1).join('');
   if (parts.length === 1) return parts[0];
   return '';
 }
 
 // =============================================================================
-// TIMESTAMP PARSING — UTC FIX
+// TIMESTAMP PARSING — extracts date from string text to avoid UTC shift
 // =============================================================================
-// JS Date objects store time in UTC. toISOString().slice(0,10) returns the UTC
-// date, not local. PDT is UTC-7, so reads after 5pm local shift to the next
-// calendar day in UTC — causing the wrong date grouping and losing qualifiers.
-//
-// Fix: extract the date string directly from the raw timestamp text.
-// "04/30/2026, 7:30:00 PM" → dateKey = "2026-04-30" (always correct, no UTC).
-// ms is only used for duration arithmetic (subtraction), which is timezone-safe.
-
+// PDT = UTC-7. Reads after 5pm local would shift to next calendar day in UTC.
+// Fix: build the date key directly from the timestamp string, never from a
+// Date object's date methods.
 function parseTimestamp(raw) {
   const m = String(raw).match(
     /^(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)$/i
   );
   if (!m) return null;
-
   const [, mo, dy, yr, rawHr, mi, sc, ampm] = m;
   let hr = parseInt(rawHr, 10);
   if (ampm.toUpperCase() === 'PM' && hr !== 12) hr += 12;
   if (ampm.toUpperCase() === 'AM' && hr === 12) hr  =  0;
-
   const dateKey = `${yr}-${String(mo).padStart(2,'0')}-${String(dy).padStart(2,'0')}`;
   const ms = Date.UTC(parseInt(yr,10), parseInt(mo,10)-1, parseInt(dy,10),
                       hr, parseInt(mi,10), parseInt(sc,10));
@@ -459,7 +547,6 @@ function parseTimestamp(raw) {
 // =============================================================================
 // FILE PARSERS
 // =============================================================================
-
 function parseExcelToRows(arrayBuffer, headerRowIndex) {
   const wb  = XLSX.read(arrayBuffer, { type:'array', cellDates:false });
   const ws  = wb.Sheets[wb.SheetNames[0]];
@@ -473,22 +560,23 @@ function parseExcelToRows(arrayBuffer, headerRowIndex) {
   });
 }
 
-function parseCsv(arrayBuffer) {
+// Parses CSV/TSV/TXT where fields may be quoted.
+// Simple quote toggle handles =""...""" (Excel formula quoting) and
+// "value1,value2" (multi-value fields like LICENSE_PLATES).
+function parseCsvText(arrayBuffer) {
   const text  = new TextDecoder('utf-8').decode(arrayBuffer);
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (!lines.length) return [];
-
   const parseRow = (line) => {
     const cols = []; let cur = '', inQ = false;
     for (const ch of line) {
-      if (ch === '"') { inQ = !inQ; }
+      if (ch === '"')              { inQ = !inQ; }
       else if (ch === ',' && !inQ) { cols.push(cur); cur = ''; }
-      else { cur += ch; }
+      else                         { cur += ch; }
     }
     cols.push(cur);
     return cols;
   };
-
   const headers = parseRow(lines[0]).map(h => h.trim());
   return lines.slice(1).map(line => {
     const cols = parseRow(line);
@@ -507,11 +595,11 @@ function findCol(obj, keywords) {
 // =============================================================================
 // CORE ANALYSIS
 // =============================================================================
-
 function runAnalysis() {
   clearLog();
   document.getElementById('section-log').classList.remove('hidden');
   document.getElementById('section-results').classList.add('hidden');
+  document.getElementById('section-draw').classList.add('hidden');
   document.getElementById('download-btn').disabled = true;
   document.getElementById('coverage-warning').classList.remove('show');
   results = [];
@@ -521,22 +609,22 @@ function runAnalysis() {
   const minHours  = parseFloat(document.getElementById('cfg-min-hours').value) || 1.0;
   const minMs     = minHours * 3600 * 1000;
 
+  const monthLabel = files.reads.name
+    .replace(/_/g,' ').replace(/\.(xlsx?|csv|txt)$/i,'');
+
   try {
-    // ── LOAD PLATE READS ──────────────────────────────────────────────────
-    log('Reading plate reads file...');
+    // ── PLATE READS ──────────────────────────────────────────────────────────
+    log('Reading plate reads...');
     const readsRows = parseExcelToRows(files.reads.data, 1);
     const sampleR   = readsRows[0] || {};
-    const plateColR = findCol(sampleR, ['plate number', 'plate']);
-    const timeColR  = findCol(sampleR, ['local time', 'local_time']);
-
+    const plateColR = findCol(sampleR, ['plate number','plate']);
+    const timeColR  = findCol(sampleR, ['local time','local_time']);
     if (!plateColR || !timeColR) {
-      log('Plate reads file is missing plate or time columns. Found: ' + Object.keys(sampleR).join(', '), 'err');
-      return;
+      log('Missing plate or time columns. Found: ' + Object.keys(sampleR).join(', '), 'err'); return;
     }
 
-    const seen  = new Set();
+    const seen = new Set();
     const reads = [];
-
     for (const row of readsRows) {
       const plate = normReads(row[plateColR]);
       if (!plate || plate === '-') continue;
@@ -551,51 +639,81 @@ function runAnalysis() {
     const allDates    = [...new Set(reads.map(r => r.dateKey))].sort();
     const coverageDays = allDates.length;
     const dateRange   = allDates.length
-      ? `${allDates[0]} to ${allDates[allDates.length - 1]}`
-      : 'No valid dates';
+      ? `${allDates[0]} to ${allDates[allDates.length-1]}` : 'No valid dates';
 
-    log(`Plate reads: ${reads.length.toLocaleString()} cleaned rows across ${coverageDays} date(s).`, 'ok');
+    log(`Plate reads: ${reads.length.toLocaleString()} rows, ${coverageDays} unique date(s).`, 'ok');
 
     if (coverageDays < minVisits) {
-      const msg = `Reads file covers ${coverageDays} date(s) but threshold is ${minVisits}. ` +
-                  `Use a full-month reads file, or lower minimum days for testing.`;
+      const msg = `Reads file covers ${coverageDays} date(s) — threshold is ${minVisits}. Use a full-month file or lower minimum days for testing.`;
       log(msg, 'warn');
-      const banner = document.getElementById('coverage-warning');
-      banner.textContent = msg;
-      banner.classList.add('show');
+      const b = document.getElementById('coverage-warning');
+      b.textContent = msg; b.classList.add('show');
     }
 
-    // ── LOAD PAYMENTS ──────────────────────────────────────────────────────
-    log('Reading payments file...');
-    const payRows  = parseCsv(files.payments.data);
-    const sampleP  = payRows[0] || {};
-    const plateColP = findCol(sampleP, ['license plate', 'licence plate', 'plate']);
-
-    if (!plateColP) {
-      log('Payments file is missing a plate column. Found: ' + Object.keys(sampleP).join(', '), 'err');
-      return;
-    }
-
+    // ── PAYMENTS ─────────────────────────────────────────────────────────────
+    log('Reading payments...');
+    const payRows   = parseCsvText(files.payments.data);
+    const sampleP   = payRows[0] || {};
+    const plateColP = findCol(sampleP, ['license plate','licence plate','plate']);
+    if (!plateColP) { log('Payments missing plate column. Found: ' + Object.keys(sampleP).join(', '), 'err'); return; }
     const paidPlates = new Set(payRows.map(r => normPayments(r[plateColP])).filter(p => p));
     log(`Payments: ${paidPlates.size.toLocaleString()} unique plate(s).`, 'ok');
 
-    // ── LOAD CITATIONS ──────────────────────────────────────────────────────
-    log('Reading citations file...');
+    // ── CITATIONS ────────────────────────────────────────────────────────────
+    log('Reading citations...');
     const citRows   = parseExcelToRows(files.citations.data, 9);
     const sampleC   = citRows[0] || {};
-    const plateColC = findCol(sampleC, ['license #', 'licence #', 'license', 'licence', 'plate']);
-
-    if (!plateColC) {
-      log('Citations file is missing a plate column. Found: ' + Object.keys(sampleC).join(', '), 'err');
-      return;
-    }
-
+    const plateColC = findCol(sampleC, ['license #','licence #','license','licence','plate']);
+    if (!plateColC) { log('Citations missing plate column. Found: ' + Object.keys(sampleC).join(', '), 'err'); return; }
     const citedPlates = new Set(citRows.map(r => normCitations(r[plateColC])).filter(p => p));
     log(`Citations: ${citedPlates.size.toLocaleString()} unique plate(s).`, 'ok');
 
-    // ── STAGE 1: VISIT BEHAVIOUR ────────────────────────────────────────────
-    log(`Checking visit threshold: ${minVisits}+ day(s), ${minHours}+ hr first-to-last span...`);
+    // ── PERMIT HOLDERS ────────────────────────────────────────────────────────
+    // Format: Distinct of ENT_UID, EMAIL_ADDRESS, SERIES_PREFIX, PERMIT_NUMBER, LICENSE_PLATES
+    // LICENSE_PLATES can be a single plate OR a quoted comma-separated list.
+    // BIKE series are excluded (bicycle permits, not parking).
+    log('Reading permit holders...');
+    const fname   = files.permits.name.toLowerCase();
+    const permRaw = fname.endsWith('.xlsx') || fname.endsWith('.xls')
+      ? parseExcelToRows(files.permits.data, 0)
+      : parseCsvText(files.permits.data);
 
+    const samplePerm   = permRaw[0] || {};
+    const permEmailCol = findCol(samplePerm, ['email_address','email']);
+    const permNumCol   = findCol(samplePerm, ['permit_number','permit']);
+    const permSeriesCol= findCol(samplePerm, ['series_prefix','series']);
+    const permPlatesCol= findCol(samplePerm, ['license_plates','license','plate']);
+
+    if (!permPlatesCol) {
+      log('Permit file missing plates column. Found: ' + Object.keys(samplePerm).join(', '), 'err'); return;
+    }
+
+    // Build map: plate → { email, permit_number }
+    // Expand rows with multiple plates into individual entries.
+    const permitsMap = new Map();
+    let skippedSeries = 0;
+
+    for (const row of permRaw) {
+      const series = permSeriesCol ? String(row[permSeriesCol] || '').trim().toUpperCase() : '';
+      if (EXCLUDED_SERIES.has(series)) { skippedSeries++; continue; }
+
+      const email      = permEmailCol ? String(row[permEmailCol] || '').trim() : '';
+      const permitNum  = permNumCol   ? String(row[permNumCol]   || '').trim() : '';
+      const platesRaw  = String(row[permPlatesCol] || '').trim();
+
+      // Split multi-plate field: "674PRL,TC765L" → ['674PRL', 'TC765L']
+      const plates = platesRaw.split(',').map(p => p.trim().toUpperCase()).filter(p => p);
+
+      for (const plate of plates) {
+        if (!plate) continue;
+        permitsMap.set(plate, { email, permit_number: permitNum });
+      }
+    }
+
+    log(`Permits: ${permitsMap.size.toLocaleString()} plate(s) loaded (${skippedSeries} rows excluded by series).`, 'ok');
+
+    // ── STAGE 1: VISIT BEHAVIOUR (payment track) ──────────────────────────
+    log(`Visit check: ${minVisits}+ days, ${minHours}+ hr first-to-last span...`);
     const plateMap = new Map();
     for (const { plate, dateKey, ms } of reads) {
       if (!plateMap.has(plate)) plateMap.set(plate, new Map());
@@ -607,7 +725,7 @@ function runAnalysis() {
     const stage1 = [];
     plateMap.forEach((dayMap, plate) => {
       let qualDays = 0, totalMs = 0;
-      dayMap.forEach((msList) => {
+      dayMap.forEach(msList => {
         const spanMs = Math.max(...msList) - Math.min(...msList);
         if (spanMs >= minMs) { qualDays++; totalMs += spanMs; }
       });
@@ -616,42 +734,68 @@ function runAnalysis() {
                       avg_hours: (totalMs / qualDays) / 1000 / 3600 });
       }
     });
+    log(`Visit check: ${stage1.length} plate(s) passed.`, 'ok');
 
-    log(`Visit check: ${stage1.length.toLocaleString()} plate(s) passed.`, 'ok');
-
-    // ── STAGE 2: VALID PAYMENT ──────────────────────────────────────────────
-    log('Checking payment records...');
+    // ── STAGE 2: VALID PAYMENT ────────────────────────────────────────────
     const stage2 = stage1.filter(r => paidPlates.has(r.plate));
-    log(`Payment check: ${stage2.length.toLocaleString()} plate(s) passed.`, 'ok');
+    log(`Payment check: ${stage2.length} plate(s) have valid payment.`, 'ok');
 
-    // ── STAGE 3: NO CITATIONS ───────────────────────────────────────────────
-    log('Removing plates with citations...');
-    const stage3    = stage2.filter(r => !citedPlates.has(r.plate));
-    const removed   = stage2.length - stage3.length;
-    log(`Citation check: ${removed} removed, ${stage3.length.toLocaleString()} final qualifier(s).`, 'ok');
+    // ── STAGE 3: NO CITATIONS (payment track) ────────────────────────────
+    const stage3     = stage2.filter(r => !citedPlates.has(r.plate));
+    const removedPay = stage2.length - stage3.length;
 
-    // Sort: most days first, then avg hours, then alphabetical
-    stage3.sort((a, b) =>
-      b.qualifying_days - a.qualifying_days ||
-      b.avg_hours - a.avg_hours ||
-      a.plate.localeCompare(b.plate)
-    );
+    // ── PERMIT TRACK: permit + no citation ───────────────────────────────
+    // These plates qualify regardless of visit count.
+    const permitQualifiers = [];
+    let removedPerm = 0;
+    permitsMap.forEach((data, plate) => {
+      if (citedPlates.has(plate)) { removedPerm++; return; }
+      permitQualifiers.push({
+        plate,
+        name:           '',          // not in permit file
+        email:          data.email,
+        permit_number:  data.permit_number,
+        qualifying_days:null,        // N/A — permit track bypasses visit check
+        payment_source: 'Permit',
+      });
+    });
+    log(`Permit track: ${permitQualifiers.length} qualifier(s) (${removedPerm} removed for citation).`, 'ok');
 
-    results = stage3;
+    // ── COMBINE TRACKS ────────────────────────────────────────────────────
+    // If a plate appears in both tracks, the permit entry takes precedence
+    // because it carries email contact information.
+    const permitPlatesSet   = new Set(permitQualifiers.map(r => r.plate));
+    const paymentOnlyStage3 = stage3.filter(r => !permitPlatesSet.has(r.plate));
+    const paymentQualifiers = paymentOnlyStage3.map(r => ({
+      ...r,
+      name: '', email: '', permit_number: '', payment_source: 'Payment',
+    }));
 
-    // Capture summary for Excel export
+    // Sort: permit holders first (have email), then by qualifying days
+    const allQualifiers = [
+      ...permitQualifiers,
+      ...paymentQualifiers,
+    ].sort((a, b) => {
+      if (a.payment_source === 'Permit' && b.payment_source !== 'Permit') return -1;
+      if (a.payment_source !== 'Permit' && b.payment_source === 'Permit') return  1;
+      return (b.qualifying_days || 0) - (a.qualifying_days || 0) || a.plate.localeCompare(b.plate);
+    });
+
+    const totalRemoved = removedPay + removedPerm;
+    log(`Final pool: ${allQualifiers.length.toLocaleString()} qualifier(s) (${permitQualifiers.length} permit + ${paymentQualifiers.length} payment).`, 'ok');
+
+    results = allQualifiers;
     lastRunSummary = {
-      dateRange, coverageDays, minVisits, minHours,
-      readRows:      reads.length,
-      paymentPlates: paidPlates.size,
-      citationPlates:citedPlates.size,
-      stage1Count:   stage1.length,
-      stage2Count:   stage2.length,
-      removed,
-      finalCount:    stage3.length,
+      monthLabel, dateRange, coverageDays, minVisits, minHours,
+      readRows: reads.length, paymentPlates: paidPlates.size,
+      citationPlates: citedPlates.size, permitPlates: permitsMap.size,
+      stage1Count: stage1.length, stage2Count: stage2.length,
+      removedPay, removedPerm, permitCount: permitQualifiers.length,
+      paymentCount: paymentQualifiers.length, finalCount: allQualifiers.length,
     };
 
-    renderResults(stage1.length, stage2.length, removed, stage3, minVisits, minHours);
+    renderResults(allQualifiers, stage1.length,
+                  stage2.length + permitQualifiers.length, totalRemoved);
 
   } catch (err) {
     log('Unexpected error: ' + err.message, 'err');
@@ -662,39 +806,44 @@ function runAnalysis() {
 // =============================================================================
 // RENDER RESULTS
 // =============================================================================
-
-function renderResults(s1, s2, removed, qualifiers, minVisits, minHours) {
+function renderResults(qualifiers, s1, s2, removed) {
+  const s = lastRunSummary;
   document.getElementById('stat-stage1').textContent     = s1.toLocaleString();
-  document.getElementById('stat-stage1-sub').textContent = `${minVisits}+ days, ${minHours}+ hr/day`;
+  document.getElementById('stat-stage1-sub').textContent = `${s.minVisits}+ days, ${s.minHours}+ hr/day`;
   document.getElementById('stat-stage2').textContent     = s2.toLocaleString();
+  document.getElementById('stat-stage2-sub').textContent = `${s.stage2Count} payment + ${s.permitCount} permit`;
   document.getElementById('stat-removed').textContent    = removed.toLocaleString();
   document.getElementById('stat-final').textContent      = qualifiers.length.toLocaleString();
+  document.getElementById('stat-final-sub').textContent  = `${s.permitCount} permit + ${s.paymentCount} payment`;
 
   document.getElementById('table-title').textContent =
-    `Qualifying plates — ${qualifiers.length.toLocaleString()} result${qualifiers.length !== 1 ? 's' : ''}`;
+    `Qualifying plates — ${qualifiers.length.toLocaleString()} total`;
 
   const tbody = document.getElementById('results-body');
   tbody.innerHTML = '';
 
   if (qualifiers.length === 0) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="7" style="text-align:center;padding:48px;color:var(--text-3);font-size:14px">
-      No plates met all three checks with the current settings.
-    </td>`;
+    tr.innerHTML = `<td colspan="7" style="text-align:center;padding:48px;color:var(--text-3);font-size:14px">No plates met all criteria.</td>`;
     tbody.appendChild(tr);
   } else {
     qualifiers.forEach((row, i) => {
-      const tr = document.createElement('tr');
-      const source = row.permit_number ? 'Permit' : 'Payment';
-      const badgeCls = source === 'Permit' ? 'badge-permit' : 'badge-payment';
+      const tr      = document.createElement('tr');
+      const isPermt = row.payment_source === 'Permit';
+      // Qualifying days: show number for payment track, "—" for permit track
+      const daysCell = row.qualifying_days != null
+        ? `<td class="num">${row.qualifying_days}</td>`
+        : `<td class="num" style="color:var(--text-3)">—</td>`;
       tr.innerHTML = `
         <td class="rank">${i + 1}</td>
         <td class="plate-col">${escapeHtml(row.plate)}</td>
         <td style="color:var(--text-2)">${escapeHtml(row.name || '')}</td>
-        <td style="font-family:var(--mono);font-size:11px;color:var(--text-3)">${escapeHtml(row.permit_number || '')}</td>
-        <td class="num">${row.qualifying_days}</td>
-        <td class="num">${row.avg_hours.toFixed(1)}</td>
-        <td><span class="badge ${badgeCls}">${source}</span></td>
+        <td class="email-col">${escapeHtml(row.email || '')}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text-3)">
+          ${escapeHtml(row.permit_number || 'None')}
+        </td>
+        ${daysCell}
+        <td><span class="badge ${isPermt ? 'badge-permit' : 'badge-payment'}">${escapeHtml(row.payment_source)}</span></td>
       `;
       tbody.appendChild(tr);
     });
@@ -702,53 +851,277 @@ function renderResults(s1, s2, removed, qualifiers, minVisits, minHours) {
 
   document.getElementById('download-btn').disabled = qualifiers.length === 0;
   document.getElementById('section-results').classList.remove('hidden');
+
+  if (qualifiers.length > 0) {
+    document.getElementById('section-draw').classList.remove('hidden');
+    document.getElementById('draw-pool-note').textContent =
+      `Draw pool: ${qualifiers.length.toLocaleString()} eligible plates (${s.permitCount} permit holders + ${s.paymentCount} payment holders).`;
+  }
+}
+
+// =============================================================================
+// DRAW — cryptographically secure, rejection-sampled randomness
+// =============================================================================
+
+// Returns a uniformly distributed integer in [0, max) with no modulo bias.
+// Rejection sampling: discard values in the "incomplete bucket" at the top
+// of the Uint32 range so every outcome has identical probability.
+function secureRandomInt(max) {
+  const arr   = new Uint32Array(1);
+  const limit = Math.floor(0x100000000 / max) * max;
+  do { window.crypto.getRandomValues(arr); } while (arr[0] >= limit);
+  return arr[0] % max;
+}
+
+let redrawConfirmPending = false;
+let redrawTimer          = null;
+
+function executeDraw() {
+  if (results.length === 0) return;
+
+  const history    = loadHistory();
+  const monthLabel = lastRunSummary.monthLabel;
+  const existing   = history.find(e => e.month === monthLabel);
+
+  if (existing) {
+    // A draw already exists for this month — require manager approval
+    document.getElementById('approval-message').textContent =
+      `A draw was already recorded for "${monthLabel}" on ${existing.drawnAt}. Manager approval is required to replace it.`;
+    document.getElementById('approval-code-input').value = '';
+    document.getElementById('approval-error').classList.add('hidden');
+    document.getElementById('approval-prompt').classList.remove('hidden');
+    document.getElementById('approval-code-input').focus();
+    // Store the callback so validateApprovalCode() can trigger it
+    pendingDrawCallback = performDraw;
+  } else {
+    performDraw();
+  }
+}
+
+function validateApprovalCode() {
+  const input = document.getElementById('approval-code-input').value.trim();
+  if (input !== MANAGER_CODE) {
+    document.getElementById('approval-error').classList.remove('hidden');
+    document.getElementById('approval-code-input').value = '';
+    document.getElementById('approval-code-input').focus();
+    return;
+  }
+  // Code accepted
+  document.getElementById('approval-prompt').classList.add('hidden');
+  document.getElementById('approval-error').classList.add('hidden');
+  if (pendingDrawCallback) { pendingDrawCallback(); pendingDrawCallback = null; }
+}
+
+function cancelApproval() {
+  document.getElementById('approval-prompt').classList.add('hidden');
+  document.getElementById('approval-code-input').value = '';
+  pendingDrawCallback = null;
+}
+
+function performDraw() {
+  const requested = parseInt(document.getElementById('cfg-winner-count').value) || 1;
+  const drawCount = Math.min(requested, results.length);
+
+  // Partial Fisher-Yates shuffle using secure randomness
+  const pool    = [...results];
+  const winners = [];
+  for (let i = 0; i < drawCount; i++) {
+    const idx = i + secureRandomInt(pool.length - i);
+    [pool[i], pool[idx]] = [pool[idx], pool[i]];
+    winners.push(pool[i]);
+  }
+
+  renderWinners(winners);
+  saveWinnersToHistory(winners);
+  resetRedrawButton();
+  document.getElementById('draw-actions').classList.remove('hidden');
+}
+
+function handleRedraw() {
+  if (!redrawConfirmPending) {
+    redrawConfirmPending = true;
+    const btn = document.getElementById('redraw-btn');
+    btn.textContent = 'Confirm re-draw?';
+    btn.classList.add('confirming');
+    document.getElementById('redraw-note').textContent = 'Click again to confirm.';
+    redrawTimer = setTimeout(resetRedrawButton, 4000);
+  } else {
+    clearTimeout(redrawTimer);
+    redrawConfirmPending = false;
+    // Re-draw goes through the same approval check as first draw
+    executeDraw();
+  }
+}
+
+function resetRedrawButton() {
+  redrawConfirmPending = false;
+  clearTimeout(redrawTimer);
+  const btn = document.getElementById('redraw-btn');
+  btn.textContent = 'Re-draw';
+  btn.classList.remove('confirming');
+  document.getElementById('redraw-note').textContent = '';
+}
+
+function renderWinners(winners) {
+  const display = document.getElementById('winner-display');
+  display.innerHTML = '';
+  display.classList.remove('hidden');
+  winners.forEach((w, i) => {
+    const card = document.createElement('div');
+    card.className = 'winner-card';
+    card.innerHTML = `
+      <div class="winner-num">${i + 1}</div>
+      <div class="winner-info">
+        <div class="winner-plate">${escapeHtml(w.plate)}</div>
+        ${w.name  ? `<div class="winner-name">${escapeHtml(w.name)}</div>`   : ''}
+        ${w.email ? `<div class="winner-email">${escapeHtml(w.email)}</div>` : ''}
+      </div>
+      <span class="badge ${w.payment_source === 'Permit' ? 'badge-permit' : 'badge-payment'}">
+        ${escapeHtml(w.payment_source)}
+      </span>
+    `;
+    display.appendChild(card);
+  });
+}
+
+// =============================================================================
+// WINNER HISTORY — persisted in localStorage
+// =============================================================================
+
+function saveWinnersToHistory(winners) {
+  if (!lastRunSummary) return;
+  const history    = loadHistory();
+  const monthLabel = lastRunSummary.monthLabel;
+
+  const entry = {
+    id:          Date.now(),
+    month:       monthLabel,
+    drawnAt:     new Date().toLocaleString(),
+    winnerCount: winners.length,
+    winners:     winners.map(w => ({
+      plate:  w.plate,
+      name:   w.name  || '',
+      email:  w.email || '',
+      source: w.payment_source,
+      permit: w.permit_number || '',
+    })),
+  };
+
+  // Replace existing entry for this month, or prepend a new one
+  const idx = history.findIndex(e => e.month === monthLabel);
+  if (idx >= 0) {
+    history[idx] = entry;
+  } else {
+    history.unshift(entry);
+  }
+
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
+  catch { log('Could not save to history (localStorage unavailable).', 'warn'); }
+  renderHistory();
+}
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function clearHistory() {
+  if (!confirm('Clear all winner history? This cannot be undone.')) return;
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = loadHistory();
+  const list    = document.getElementById('history-list');
+  if (history.length === 0) {
+    list.innerHTML = '<div class="history-empty">No draws recorded yet. Winners will appear here after each draw.</div>';
+    return;
+  }
+  list.innerHTML = history.map(entry => `
+    <div class="history-entry">
+      <div class="history-meta">
+        <span class="history-month">${escapeHtml(entry.month)}</span>
+        <span class="history-date">${escapeHtml(entry.drawnAt)}</span>
+        <span class="history-count">${entry.winnerCount} winner${entry.winnerCount !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="history-winners">
+        ${entry.winners.map(w => `
+          <div class="history-winner">
+            <span class="history-plate">${escapeHtml(w.plate)}</span>
+            ${w.name  ? `<span class="history-name">${escapeHtml(w.name)}</span>`   : ''}
+            ${w.email ? `<span class="history-email">${escapeHtml(w.email)}</span>` : ''}
+            <span class="badge ${w.source === 'Permit' ? 'badge-permit' : 'badge-payment'}">${escapeHtml(w.source)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
 }
 
 // =============================================================================
 // EXCEL DOWNLOAD
 // =============================================================================
-
 function downloadExcel() {
   if (!results.length || !lastRunSummary) return;
-
+  const s  = lastRunSummary;
   const wb = XLSX.utils.book_new();
 
-  // Sheet 1: Qualifiers
+  // Sheet 1 — columns: #, Plate, Name, Email, Permit No., Qualifying Days, Track
   const qualData = [
-    ['#', 'Plate Number', 'Name', 'Permit Number', 'Qualifying Days', 'Avg Stay (hrs)', 'Payment Source'],
+    ['#', 'Plate', 'Name', 'Email', 'Permit No.', 'Qualifying Days', 'Track'],
     ...results.map((r, i) => [
-      i + 1, r.plate, r.name || '', r.permit_number || '',
-      r.qualifying_days, parseFloat(r.avg_hours.toFixed(1)),
-      r.permit_number ? 'Permit' : 'Payment',
+      i + 1,
+      r.plate,
+      r.name         || '',
+      r.email        || '',
+      r.permit_number || 'None',
+      r.qualifying_days != null ? r.qualifying_days : 'N/A',
+      r.payment_source,
     ])
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(qualData);
-  ws1['!cols'] = [{ wch:5 },{ wch:16 },{ wch:28 },{ wch:18 },{ wch:18 },{ wch:16 },{ wch:14 }];
+  ws1['!cols'] = [{wch:4},{wch:16},{wch:24},{wch:32},{wch:14},{wch:18},{wch:10}];
   XLSX.utils.book_append_sheet(wb, ws1, 'Qualifiers');
 
-  // Sheet 2: Processing Summary
-  const s = lastRunSummary;
-  const summaryData = [
+  // Sheet 2 — Processing Summary
+  const sumData = [
     ['Parking Perks — Processing Summary', ''],
-    ['Run date',                    new Date().toLocaleString()],
-    ['Reads date range',            s.dateRange],
-    ['Unique dates in reads file',  s.coverageDays],
-    ['Cleaned plate read rows',     s.readRows],
-    ['Unique paid plates',          s.paymentPlates],
-    ['Unique cited plates',         s.citationPlates],
-    ['Minimum qualifying days',     s.minVisits],
-    ['Minimum hours per day',       s.minHours],
-    ['Passed visit check',          s.stage1Count],
-    ['Passed payment check',        s.stage2Count],
-    ['Removed for citation',        s.removed],
-    ['FINAL QUALIFIERS',            s.finalCount],
+    ['Month',                           s.monthLabel],
+    ['Run date',                        new Date().toLocaleString()],
+    ['Reads date range',                s.dateRange],
+    ['Unique dates in reads file',      s.coverageDays],
+    ['Cleaned read rows',               s.readRows],
+    ['Unique paid plates',              s.paymentPlates],
+    ['Unique cited plates',             s.citationPlates],
+    ['Unique permit plates loaded',     s.permitPlates],
+    ['Minimum qualifying days',         s.minVisits],
+    ['Minimum hours per day',           s.minHours],
+    [''],
+    ['PAYMENT TRACK'],
+    ['Passed visit check',              s.stage1Count],
+    ['Passed payment check',            s.stage2Count],
+    ['Removed for citation',            s.removedPay],
+    ['Payment track qualifiers',        s.paymentCount],
+    [''],
+    ['PERMIT TRACK'],
+    ['Total permit plates',             s.permitPlates],
+    ['Removed for citation',            s.removedPerm],
+    ['Permit track qualifiers',         s.permitCount],
+    [''],
+    ['TOTAL FINAL DRAW POOL',           s.finalCount],
   ];
-  const ws2 = XLSX.utils.aoa_to_sheet(summaryData);
-  ws2['!cols'] = [{ wch:34 },{ wch:24 }];
+  const ws2 = XLSX.utils.aoa_to_sheet(sumData);
+  ws2['!cols'] = [{wch:36},{wch:26}];
   XLSX.utils.book_append_sheet(wb, ws2, 'Processing Summary');
 
   XLSX.writeFile(wb, `Parking_Perks_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
+
+// =============================================================================
+// INIT
+// =============================================================================
+renderHistory();
 </script>
 </body>
 </html>
