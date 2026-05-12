@@ -1,4 +1,150 @@
-# Ignore all files in the test-data directory
-/test-data/*
+# =============================================================================
+# Parking Perks — .gitignore
+#
+# Rule of thumb: if a file contains a real person's name, email address,
+# licence plate number, password, API key, or any value specific to a
+# deployment — it must not be tracked. When in doubt, add it here.
+# =============================================================================
+
+
+# =============================================================================
+# PERSONAL DATA & SENSITIVE INPUT FILES
+# These files contain real plate reads, payment records, permit holder names,
+# email addresses, and citation records. Never commit them.
+# =============================================================================
+
+test-data/
+
+# Permit holder exports (wherever they land — not just in test-data/)
+*Active_Permits*.txt
+*Permit*.txt
+
+# Raw data files dropped at any level
+*.xlsx
+*.xls
+*.csv
+
+
+# =============================================================================
+# GENERATED OUTPUT REPORTS
+# parking_perks.py produces Excel reports containing winner names, emails,
+# and plate numbers. These must never be committed.
+# =============================================================================
+
+Parking_Perks_*.xlsx
+*_Report.xlsx
+*_TEST.xlsx
+*_report.xlsx
+
+
+# =============================================================================
+# ENVIRONMENT VARIABLES & SECRETS
+# .env files hold database passwords, API keys, SMTP credentials, and the
+# manager code. The .env.example file (no real values, just the template)
+# IS safe to track — it documents what variables are needed.
+# =============================================================================
+
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# Catch all .env variants except the example template
+backend/.env*
+!backend/.env.example
+
+
+# =============================================================================
+# DATABASES
+# SQLite files contain the draw history table (winner names, emails, plates)
+# and the audit log. PostgreSQL credentials live in .env (already covered).
+# =============================================================================
+
+*.db
+*.sqlite
+*.sqlite3
+
+
+# =============================================================================
+# PYTHON ARTIFACTS
+# =============================================================================
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+
+# =============================================================================
+# NODE / FRONTEND
+# =============================================================================
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.local
+
+
+# =============================================================================
+# LOGS
+# Log files can capture plate numbers, emails, and API responses.
+# =============================================================================
+
+*.log
+logs/
+backend/logs/
+
+
+# =============================================================================
+# OS & EDITOR
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor swap files
+*.swp
+*.swo
+*~
+
+# VSCode — settings.json is machine-local (Python env paths, etc.)
+# extensions.json documents recommended extensions and is safe to track.
+.vscode/settings.json
+
+# JetBrains / PyCharm
+.idea/
+
+
+# =============================================================================
+# CLAUDE CODE
+# CLAUDE.md contains internal project instructions. Keeping it local means
+# it can be frank about system design without being publicly indexed.
+# =============================================================================
 
 CLAUDE.md
