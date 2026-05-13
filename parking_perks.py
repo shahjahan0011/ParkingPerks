@@ -206,41 +206,103 @@ def require_columns(df: pd.DataFrame, required: list[str], file_label: str) -> N
 # one function — nothing else in the script breaks.
 # =============================================================================
 
+def _find_reads_header_row(path: str, engine: str | None) -> int:
+    """
+    Scans the first 10 rows to find which row contains the plate column header.
+
+    Two known formats:
+      Old format (Cloudrunner):  header on row 2  (index 1)
+        - Row 1 is a report timestamp line
+        - Columns: "Plate number", "Local time (PDT)", ...
+      New format (Genetec):      header on row 7  (index 6)
+        - Rows 1-6 are report metadata (Report name, user, date, count, range)
+        - Columns: "Plate read", "Read timestamp", ...
+
+    We scan instead of hardcoding so this keeps working if the metadata
+    row count changes in future exports.
+    """
+    df_raw = pd.read_excel(path, header=None, engine=engine)
+    plate_keywords = {"plate read", "plate number"}
+    for i in range(min(10, len(df_raw))):
+        row_vals = {str(v).strip().lower() for v in df_raw.iloc[i] if pd.notna(v)}
+        if row_vals & plate_keywords:
+            return i
+    return 1   # safe fallback — old format default
+
+
 def load_plate_reads(path: str) -> pd.DataFrame:
     """
-    Loads the plate reads XLSX.
+    Loads plate reads from either the old Cloudrunner format or the new
+    Genetec format. The two differ in header row position and column names:
 
-    FORMAT QUIRK: Row 1 is a report timestamp ("Report created: ...").
-    The real column headers are on row 2 (index 1 in zero-based counting).
-    header=1 tells pandas to treat row 2 as the header row.
+      Old (Cloudrunner):
+        header row:   index 1  (row 2)
+        plate column: "Plate number"
+        time column:  "Local time (PDT)"  — stored as a string
+                      e.g. "04/30/2026, 11:56:09 PM"
+
+      New (Genetec):
+        header row:   index 6  (row 7)
+        plate column: "Plate read"
+        time column:  "Read timestamp"    — stored as a native Excel datetime
+                      e.g. 2026-04-01 10:54:22.023 (pandas reads as Timestamp)
+
+    Both formats end up as a clean DataFrame with columns [plate, local_time].
     """
-    df = pd.read_excel(path, header=1)
+    engine = excel_engine_for(path)
+    header_row = _find_reads_header_row(path, engine)
+
+    df = pd.read_excel(path, header=header_row, engine=engine)
     df.columns = df.columns.str.strip()
 
-    df = df.rename(columns={
-        "Local time (PDT)": "local_time",
-        "Plate number":     "plate_raw",
-    })
+    # Flexible column detection — works with both old and new column names.
+    # Keywords are ordered most-specific first so "plate read" matches before
+    # the generic "plate" fallback.
+    plate_col = find_column(df, ["plate read", "plate number", "plate"])
+    time_col  = find_column(df, ["read timestamp", "local time"])
 
-    require_columns(df, ["local_time", "plate_raw"], "Plate reads file")
+    if not plate_col:
+        raise ValueError(
+            f"Plate reads file has no recognisable plate column.\n"
+            f"Available columns: {list(df.columns)}"
+        )
+    if not time_col:
+        raise ValueError(
+            f"Plate reads file has no recognisable timestamp column.\n"
+            f"Available columns: {list(df.columns)}"
+        )
+
+    df = df.rename(columns={plate_col: "plate_raw", time_col: "local_time"})
 
     df["plate"] = df["plate_raw"].apply(normalise_reads_plate)
     df = df[df["plate"] != ""]
 
-    # Parse the timestamp string into a real Python datetime.
-    # format= tells pandas the exact structure of the string.
-    # errors="coerce" turns any unparseable value into NaT (Not a Time)
-    # instead of crashing — we then drop those rows below.
-    df["local_time"] = pd.to_datetime(
-        df["local_time"],
-        format="%m/%d/%Y, %I:%M:%S %p",
-        errors="coerce",
-    )
+    # Timestamp parsing — detect format from the first non-null value.
+    #
+    # Old format: the column contains strings like "04/30/2026, 11:56:09 PM".
+    #   pd.to_datetime with errors="coerce" alone won't parse this reliably,
+    #   so we use the explicit format string.
+    #
+    # New format: pandas already read the column as Timestamp objects because
+    #   Excel stores them as native datetime values. pd.to_datetime on a
+    #   Series of Timestamps is a no-op — it just confirms the type.
+    sample = df["local_time"].dropna().iloc[0] if not df["local_time"].dropna().empty else None
+
+    if isinstance(sample, str):
+        # Old Cloudrunner string format
+        df["local_time"] = pd.to_datetime(
+            df["local_time"],
+            format="%m/%d/%Y, %I:%M:%S %p",
+            errors="coerce",
+        )
+    else:
+        # New Genetec native datetime format (or anything pandas already parsed)
+        df["local_time"] = pd.to_datetime(df["local_time"], errors="coerce")
+
     df = df.dropna(subset=["local_time"])
 
     # Deduplicate same plate + same timestamp.
-    # Two cameras at the same entrance can fire simultaneously, creating
-    # identical rows. One copy is enough.
+    # Two cameras at the same entrance can fire simultaneously.
     df = df.drop_duplicates(subset=["plate", "local_time"], keep="first")
 
     return df[["plate", "local_time"]].copy()

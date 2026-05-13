@@ -423,7 +423,7 @@ footer { background: var(--ubc-navy); border-top: 3px solid var(--ubc-gold); col
 
 </main>
 
-<footer>UBC Okanagan — Parking Services — Internal Tool</footer>
+<footer>UBC Okanagan — Parking &amp; Sustainable Transportation — Internal Tool</footer>
 
 <script>
 // =============================================================================
@@ -505,7 +505,6 @@ function escapeHtml(v) {
 function normReads(raw) {
   if (raw == null || raw === '') return '';
   return String(raw).trim().toUpperCase();
-
 }
 function normPayments(raw) {
   if (raw == null || raw === '') return '';
@@ -525,20 +524,50 @@ function normCitations(raw) {
 }
 
 // =============================================================================
-// TIMESTAMP PARSING — extracts date from string text to avoid UTC shift
+// TIMESTAMP PARSING
 // =============================================================================
-// PDT = UTC-7. Reads after 5pm local would shift to next calendar day in UTC.
-// Fix: build the date key directly from the timestamp string, never from a
-// Date object's date methods.
+//
+// Two formats exist depending on which system exported the reads file.
+//
+// Old format (Cloudrunner) — string: "04/30/2026, 11:56:09 PM"
+//   These are LOCAL time strings (PDT = UTC-7). We must extract the date
+//   key directly from the string — never from a Date object — because
+//   Date.toISOString() returns UTC, which shifts reads after 5pm PDT to
+//   the next calendar day. This was the bug that caused JS to return 48
+//   qualifiers instead of 52.
+//
+// New format (Genetec) — Excel serial number: e.g. 46113.45441...
+//   Excel stores datetimes as a decimal: integer part = days since 1900-01-01,
+//   fractional part = fraction of day. There is no timezone in the value —
+//   it represents wall-clock time exactly. Treating it as UTC gives the
+//   correct calendar date because the value IS the local time.
+//   Formula: ms = (serial - 25569) * 86400 * 1000
+//     where 25569 = days from Excel epoch (1900-01-01) to Unix epoch (1970-01-01)
+//   No timezone correction needed. No date key shift.
+
 function parseTimestamp(raw) {
+
+  // ── New format: numeric Excel serial ──────────────────────────────────────
+  // 40000 ≈ year 2009 — sanity-check so we don't try to parse unrelated numbers
+  if (typeof raw === 'number' && raw > 40000) {
+    const ms      = Math.round((raw - 25569) * 86400 * 1000);
+    const dateKey = new Date(ms).toISOString().slice(0, 10);
+    return { dateKey, ms };
+  }
+
+  // ── Old format: "MM/DD/YYYY, HH:MM:SS AM|PM" string ──────────────────────
+  // Date key is extracted from the string parts directly (no Date object)
+  // to avoid the UTC timezone shift.
   const m = String(raw).match(
     /^(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)$/i
   );
   if (!m) return null;
+
   const [, mo, dy, yr, rawHr, mi, sc, ampm] = m;
   let hr = parseInt(rawHr, 10);
   if (ampm.toUpperCase() === 'PM' && hr !== 12) hr += 12;
   if (ampm.toUpperCase() === 'AM' && hr === 12) hr  =  0;
+
   const dateKey = `${yr}-${String(mo).padStart(2,'0')}-${String(dy).padStart(2,'0')}`;
   const ms = Date.UTC(parseInt(yr,10), parseInt(mo,10)-1, parseInt(dy,10),
                       hr, parseInt(mi,10), parseInt(sc,10));
@@ -555,6 +584,37 @@ function parseExcelToRows(arrayBuffer, headerRowIndex) {
   if (raw.length <= headerRowIndex) return [];
   const headers = raw[headerRowIndex].map(h => String(h).trim());
   return raw.slice(headerRowIndex + 1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = row[i] ?? ''; });
+    return obj;
+  });
+}
+
+// Auto-detecting version used for plate reads — scans the first 10 rows to
+// find which one contains the plate column header, then uses it as the header.
+//
+// Old format (Cloudrunner): header on row index 1
+//   columns: "Plate number", "Local time (PDT)"
+// New format (Genetec):     header on row index 6
+//   columns: "Plate read", "Read timestamp"
+function parseExcelToRowsAutoHeader(arrayBuffer) {
+  const wb  = XLSX.read(arrayBuffer, { type:'array', cellDates:false });
+  const ws  = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+
+  const plateKeywords = ['plate read', 'plate number'];
+  let headerIdx = 1;   // safe fallback — old format default
+  for (let i = 0; i < Math.min(10, raw.length); i++) {
+    const rowVals = raw[i].map(v => String(v).trim().toLowerCase());
+    if (rowVals.some(v => plateKeywords.includes(v))) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (raw.length <= headerIdx) return [];
+  const headers = raw[headerIdx].map(h => String(h).trim());
+  return raw.slice(headerIdx + 1).map(row => {
     const obj = {};
     headers.forEach((h, i) => { obj[h] = row[i] ?? ''; });
     return obj;
@@ -616,10 +676,14 @@ function runAnalysis() {
   try {
     // ── PLATE READS ──────────────────────────────────────────────────────────
     log('Reading plate reads...');
-    const readsRows = parseExcelToRows(files.reads.data, 1);
+    // parseExcelToRowsAutoHeader scans the first 10 rows to find the header —
+    // handles both old Cloudrunner format (header row 2) and new Genetec format (row 7)
+    const readsRows = parseExcelToRowsAutoHeader(files.reads.data);
     const sampleR   = readsRows[0] || {};
-    const plateColR = findCol(sampleR, ['plate number','plate', 'Plate read']);
-    const timeColR  = findCol(sampleR, ['local time','local_time', 'Read timestamp']);
+    // Column name differs by system: 'Plate read' (Genetec) vs 'Plate number' (Cloudrunner)
+    const plateColR = findCol(sampleR, ['plate read','plate number','plate']);
+    // Timestamp column: 'Read timestamp' (Genetec) vs 'Local time (PDT)' (Cloudrunner)
+    const timeColR  = findCol(sampleR, ['read timestamp','local time','local_time']);
     if (!plateColR || !timeColR) {
       log('Missing plate or time columns. Found: ' + Object.keys(sampleR).join(', '), 'err'); return;
     }
