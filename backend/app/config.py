@@ -16,10 +16,14 @@ class Settings(BaseSettings):
     t2_iris_base_url: str = ""
     t2_iris_api_key: str = ""
 
-    # T2 Flex
+    # T2 Flex — web services (Basic Auth, not OAuth2)
     t2_flex_base_url: str = ""
-    t2_flex_client_id: str = ""
-    t2_flex_client_secret: str = ""
+    t2_flex_username: str = ""
+    t2_flex_password: str = ""
+    t2_flex_query_permits: str = "Parking Perks - List of active Permit Holders"
+    t2_flex_query_citations: str = "Parking Perks - Citations by Month"
+    t2_flex_verify_ssl: bool = True
+    t2_flex_timeout: float = 60.0
 
     # Email
     smtp_host: str = "smtp.mail.ubc.ca"
