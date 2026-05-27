@@ -1,12 +1,22 @@
 """
 Qualification pipeline — the core business logic.
 
-Ported from parking_perks.py with the same two-track structure:
-  Payment track: 10+ days with 1+ hour spans, valid payment, no citation
-  Permit  track: active permit holder, no citation (no visit threshold)
+Two-track structure:
+  Payment track: min_visits days with min_hours span, valid payment, no UBCO citation.
+  Permit  track: active permit holder, no UBCO citation (no visit threshold).
 
-This module works with structured Python objects (dataclasses) from the
-integration layer. Pandas is used internally for efficient computation.
+FAIRNESS GUARANTEES
+-------------------
+1. One pool entry per permit holder regardless of plate count.
+   A person with 8 registered plates has the same 1-in-N chance as a person
+   with 1 plate. Only the permit holder's first plate is entered; all other
+   plates are excluded from the payment track too.
+
+2. Citations are UBCO-zone only (CZL_UID_ZONE = 2001 in the T2 Flex query).
+   A Vancouver citation does NOT disqualify an UBCO parker.
+
+3. Permit track takes precedence over payment track. If a plate appears in
+   both, it enters the pool once via the permit track (which has the email).
 """
 
 from __future__ import annotations
@@ -37,7 +47,10 @@ def run_qualification(
     reads_df = _reads_to_df(reads)
     paid_plates = {p.plate for p in payments}
     cited_plates = {c.plate for c in citations}
-    permit_map = _build_permit_map(permits)
+
+    # permit_pool_map  — plate → holder for pool entries (one plate per person)
+    # all_permit_plates — ALL plates of ALL permit holders (for payment track exclusion)
+    permit_pool_map, all_permit_plates = _build_permit_maps(permits)
 
     coverage_days = reads_df["local_time"].dt.date.nunique() if not reads_df.empty else 0
     date_min = reads_df["local_time"].dt.date.min() if not reads_df.empty else None
@@ -45,34 +58,37 @@ def run_qualification(
 
     # ---- Permit track -------------------------------------------------------
     permit_qualifiers: list[dict] = []
-    for plate, holder in permit_map.items():
-        if plate not in cited_plates:
-            permit_qualifiers.append({
-                "plate": plate,
-                "name": holder.name,
-                "email": holder.email,
-                "permit_number": holder.permit_number,
-                "qualifying_days": None,
-                "avg_hours": None,
-                "track": "permit",
-            })
-
-    permit_plates_set = set(permit_map.keys())
+    permit_removed_citations = 0
+    for plate, holder in permit_pool_map.items():
+        if plate in cited_plates:
+            permit_removed_citations += 1
+            continue
+        permit_qualifiers.append({
+            "plate": plate,
+            "name": holder.name,
+            "email": holder.email,
+            "permit_number": holder.permit_number,
+            "qualifying_days": None,
+            "avg_hours": None,
+            "track": "permit",
+        })
 
     # ---- Payment track -------------------------------------------------------
     stage1 = _compute_qualifying_visits(reads_df, min_visits, min_hours)
 
     stage2_payment_count = 0
+    payment_removed_citations = 0
     payment_qualifiers: list[dict] = []
 
     for _, row in stage1.iterrows():
         plate = row["plate"]
-        if plate in permit_plates_set:
-            continue  # permit track takes precedence
+        if plate in all_permit_plates:
+            continue  # all plates of any permit holder are excluded from payment track
         if plate not in paid_plates:
             continue
         stage2_payment_count += 1
         if plate in cited_plates:
+            payment_removed_citations += 1
             continue
         payment_qualifiers.append({
             "plate": plate,
@@ -94,14 +110,14 @@ def run_qualification(
         "total_plates": int(reads_df["plate"].nunique()) if not reads_df.empty else 0,
         "payment_plates": len(paid_plates),
         "citation_plates": len(cited_plates),
-        "permit_plates": len(permit_map),
+        "permit_plates": len(permit_pool_map),
         "min_visits": min_visits,
         "min_hours": min_hours,
         "stage1_count": len(stage1),
         "stage2_payment": stage2_payment_count,
         "stage2_permit": len(permit_qualifiers),
         "stage2_total": stage2_payment_count + len(permit_qualifiers),
-        "removed_citations": 0,  # already excluded above
+        "removed_citations": permit_removed_citations + payment_removed_citations,
         "final": len(qualifiers),
         "missing_emails": [q["plate"] for q in qualifiers if not q["email"]],
     }
@@ -119,16 +135,41 @@ def _reads_to_df(reads: list[PlateRead]) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-def _build_permit_map(permits: list[PermitHolder]) -> dict[str, PermitHolder]:
-    """Expand multi-plate permit holders into a plate → holder mapping."""
-    mapping: dict[str, PermitHolder] = {}
+def _build_permit_maps(
+    permits: list[PermitHolder],
+) -> tuple[dict[str, PermitHolder], set[str]]:
+    """
+    Returns:
+        permit_pool_map  — plate → holder, with exactly ONE plate per holder.
+                           This is what goes into the draw pool.
+        all_permit_plates — every plate associated with any active permit holder,
+                           used to exclude permit-holder plates from the payment track.
+
+    FAIRNESS: A permit holder with 8 registered plates gets ONE entry in the draw
+    pool, not 8. The "primary" plate is whichever comes first in their plates list.
+    All 8 plates are still excluded from the payment track so the same person
+    cannot appear twice (once via permit, once via payment).
+    """
+    permit_pool_map: dict[str, PermitHolder] = {}
+    all_permit_plates: set[str] = set()
+
     for holder in permits:
         if holder.series_prefix in EXCLUDED_SERIES:
             continue
+
+        # Collect ALL plates for payment-track exclusion
         for plate in holder.plates:
-            if plate and plate not in mapping:
-                mapping[plate] = holder
-    return mapping
+            if plate:
+                all_permit_plates.add(plate)
+
+        # Add ONE plate to the draw pool (first valid plate not already claimed
+        # by another holder — rare but possible with shared vehicles)
+        for plate in holder.plates:
+            if plate and plate not in permit_pool_map:
+                permit_pool_map[plate] = holder
+                break  # one entry per person
+
+    return permit_pool_map, all_permit_plates
 
 
 def _compute_qualifying_visits(

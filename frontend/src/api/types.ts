@@ -84,3 +84,10 @@ export interface MissingEmailItem {
 export interface ApiError {
   detail: string
 }
+
+export interface UploadResponse {
+  status: string
+  filename: string
+  size_bytes: number
+  stored_as: string
+}

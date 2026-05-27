@@ -147,4 +147,7 @@ Desktop.ini
 # it can be frank about system design without being publicly indexed.
 # =============================================================================
 
+AGENTS.md
 CLAUDE.md
+backend/parking_perks.db
+backend/data/*.csv

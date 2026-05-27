@@ -15,13 +15,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
-from app.db.database import create_tables
 from app.scheduler.monthly import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await create_tables()
     start_scheduler()
     yield
     stop_scheduler()

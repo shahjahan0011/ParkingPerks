@@ -8,6 +8,7 @@ instead of calling this function.
 
 from __future__ import annotations
 
+import asyncio
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -21,7 +22,10 @@ async def send_winner_notifications(winners: list[dict], month_label: str) -> No
         email = winner.get("email")
         if not email:
             continue
-        _send(
+        # smtplib is synchronous blocking I/O — run it in a thread so we
+        # don't block the asyncio event loop.
+        await asyncio.to_thread(
+            _send,
             to=email,
             subject=f"Congratulations — Parking Perks Winner ({month_label})",
             body=_build_body(winner, month_label),

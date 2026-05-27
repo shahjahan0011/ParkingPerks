@@ -1,37 +1,34 @@
 """
-T2 Iris — payments client.
+T2 Iris - payments client.
 
 STUB: Returns data loaded from the local test-data CSV file.
 Replace with real T2 Iris REST API calls once endpoint docs are available.
-
-Expected T2 Iris API shape (to be confirmed):
-  GET /api/v1/transactions?month=2026-04&type=parking
-  Response: [{ "licensePlate": "SK041H", "date": "2026-04-15", "amount": 5.00 }, ...]
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pandas as pd
 
 from app.config import settings
 from app.core.normalise import normalise_payments_plate
 from app.integrations.base import Payment, PaymentsClient
-from pathlib import Path
 
 
 class T2IrisClient(PaymentsClient):
     """
-    Real implementation stub — replace with httpx calls to T2 Iris API.
+    Real implementation stub - replace with httpx calls to T2 Iris API.
 
-    When USE_STUBS=false, implement:
+    When USE_STUBS_PAYMENTS=false, implement:
       GET {T2_IRIS_BASE_URL}/transactions with T2_IRIS_API_KEY header.
     """
 
     async def fetch_payments(self, year: int, month: int) -> list[Payment]:
-        if settings.use_stubs:
+        if settings.use_stubs_payments:
             return _load_payments_from_file(year, month)
         raise NotImplementedError(
-            "T2 Iris live client not yet implemented. Set USE_STUBS=true "
+            "T2 Iris live client not yet implemented. Set USE_STUBS_PAYMENTS=true "
             "or implement HTTP calls using T2_IRIS_BASE_URL / T2_IRIS_API_KEY."
         )
 
@@ -42,7 +39,10 @@ class T2IrisClient(PaymentsClient):
 
 def _load_payments_from_file(year: int, month: int) -> list[Payment]:
     stub_dir = Path(settings.stub_data_dir)
-    candidates = sorted(stub_dir.glob("*Payment*.csv")) + sorted(stub_dir.glob("*payment*.csv"))
+    candidates = (
+        sorted(stub_dir.glob("*Payment*.csv"))
+        + sorted(stub_dir.glob("*payment*.csv"))
+    )
 
     if not candidates:
         return []

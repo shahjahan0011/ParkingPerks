@@ -2,11 +2,8 @@
 Monthly draw scheduler.
 
 Runs on the configured day/time each month (default: 1st at 09:00 PDT).
-The job pulls data, qualifies, draws, and sends winner emails — completely
+The job pulls data, qualifies, draws, and sends winner emails completely
 unattended. Winners without emails are queued for manager resolution.
-
-Uses APScheduler with an AsyncIOScheduler so it integrates cleanly with
-the FastAPI/asyncio event loop.
 """
 
 from __future__ import annotations
@@ -20,12 +17,11 @@ from apscheduler.triggers.cron import CronTrigger
 from app.config import settings
 from app.core.draw import secure_draw
 from app.core.qualify import run_qualification
-from app.db.database import AsyncSessionLocal
-from app.db.models import AuditLog, DrawHistory, MissingEmailQueue
 from app.email.notify import send_winner_notifications
 from app.integrations.genetec import GenetecClient
 from app.integrations.t2_flex import T2FlexClient
 from app.integrations.t2_iris import T2IrisClient
+from app.store import csv_store
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +56,12 @@ def stop_scheduler() -> None:
 
 async def _monthly_draw_job() -> None:
     now = datetime.now(timezone.utc)
-    year, month = now.year, now.month
+    # Draw for the *previous* calendar month — the scheduler fires on the 1st
+    # of the new month, so "this month" is always one month ahead of the data.
+    if now.month == 1:
+        year, month = now.year - 1, 12
+    else:
+        year, month = now.year, now.month - 1
     month_str = f"{year}-{month:02d}"
 
     logger.info("Monthly draw job starting for %s", month_str)
@@ -75,35 +76,37 @@ async def _monthly_draw_job() -> None:
 
         if not qualifiers:
             logger.warning("No qualifiers found for %s — draw skipped.", month_str)
+            csv_store.append_audit(
+                action="draw_skipped",
+                month=month_str,
+                actor="scheduler",
+                details={"reason": "no qualifiers"},
+            )
             return
 
         winners = secure_draw(qualifiers, settings.num_winners)
         drawn_at = datetime.now(timezone.utc)
 
-        async with AsyncSessionLocal() as db:
-            db.add(DrawHistory(
-                month=month_str,
-                drawn_at=drawn_at,
-                drawn_by="scheduler",
-                num_winners=settings.num_winners,
-                winners=winners,
-                pool_size=len(qualifiers),
-                is_redraw=False,
-                summary=summary,
-            ))
+        csv_store.save_draw(
+            month=month_str,
+            drawn_at=drawn_at,
+            drawn_by="scheduler",
+            num_winners=settings.num_winners,
+            pool_size=len(qualifiers),
+            is_redraw=False,
+            winners=winners,
+        )
 
-            db.add(AuditLog(
-                action="draw",
-                month=month_str,
-                actor="scheduler",
-                details={"winners": [w["plate"] for w in winners], "pool_size": len(qualifiers)},
-            ))
+        missing = [w["plate"] for w in winners if not w.get("email")]
+        for plate in missing:
+            csv_store.add_missing_email(month_str, plate)
 
-            missing = [w["plate"] for w in winners if not w.get("email")]
-            for plate in missing:
-                db.add(MissingEmailQueue(month=month_str, plate=plate))
-
-            await db.commit()
+        csv_store.append_audit(
+            action="draw",
+            month=month_str,
+            actor="scheduler",
+            details={"winners": [w["plate"] for w in winners], "pool_size": len(qualifiers)},
+        )
 
         if missing:
             logger.warning(

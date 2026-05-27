@@ -1,11 +1,6 @@
 """
-POST /api/draw
-
-Runs the cryptographic draw on a qualifier pool.
-A month can only be drawn once. Re-drawing requires the manager code.
-
-POST /api/draw/resolve-email
-Lets the manager supply a missing email for a payment-track winner.
+POST /api/draw          — run the cryptographic monthly draw
+POST /api/draw/resolve-email — manager supplies a missing email for a winner
 """
 
 from __future__ import annotations
@@ -13,20 +8,17 @@ from __future__ import annotations
 import hmac
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.draw import secure_draw
 from app.core.qualify import run_qualification
-from app.db.database import get_db
-from app.db.models import AuditLog, DrawHistory, MissingEmailQueue
 from app.email.notify import send_winner_notifications
 from app.integrations.genetec import GenetecClient
 from app.integrations.t2_flex import T2FlexClient
 from app.integrations.t2_iris import T2IrisClient
+from app.store import csv_store
 
 router = APIRouter()
 
@@ -64,16 +56,13 @@ class ResolveEmailRequest(BaseModel):
 
 
 @router.post("/draw", response_model=DrawResponse)
-async def draw(req: DrawRequest, db: AsyncSession = Depends(get_db)) -> DrawResponse:
+async def draw(req: DrawRequest) -> DrawResponse:
     if not (1 <= req.month <= 12):
         raise HTTPException(400, "month must be 1–12")
 
     month_str = f"{req.year}-{req.month:02d}"
 
-    existing = await db.scalar(
-        select(DrawHistory).where(DrawHistory.month == month_str).limit(1)
-    )
-
+    existing = csv_store.get_draw_by_month(month_str)
     if existing:
         _verify_manager_code(req.manager_code)
 
@@ -93,33 +82,28 @@ async def draw(req: DrawRequest, db: AsyncSession = Depends(get_db)) -> DrawResp
         )
 
     winners = secure_draw(qualifiers, req.num_winners)
-
     drawn_at = datetime.now(timezone.utc)
 
-    record = DrawHistory(
+    csv_store.save_draw(
         month=month_str,
         drawn_at=drawn_at,
         drawn_by=req.actor,
         num_winners=req.num_winners,
-        winners=winners,
         pool_size=len(qualifiers),
         is_redraw=bool(existing),
-        summary=summary,
+        winners=winners,
     )
-    db.add(record)
 
-    db.add(AuditLog(
+    csv_store.append_audit(
         action="redraw" if existing else "draw",
         month=month_str,
         actor=req.actor,
         details={"winners": [w["plate"] for w in winners], "pool_size": len(qualifiers)},
-    ))
+    )
 
     missing = [w["plate"] for w in winners if not w.get("email")]
     for plate in missing:
-        db.add(MissingEmailQueue(month=month_str, plate=plate))
-
-    await db.commit()
+        csv_store.add_missing_email(month_str, plate)
 
     if not missing:
         await send_winner_notifications(winners, month_str)
@@ -135,47 +119,32 @@ async def draw(req: DrawRequest, db: AsyncSession = Depends(get_db)) -> DrawResp
 
 
 @router.post("/draw/resolve-email")
-async def resolve_email(req: ResolveEmailRequest, db: AsyncSession = Depends(get_db)) -> dict:
+async def resolve_email(req: ResolveEmailRequest) -> dict:
     """Manager supplies a missing email for a payment-track winner."""
-    entry = await db.scalar(
-        select(MissingEmailQueue).where(
-            MissingEmailQueue.month == req.month,
-            MissingEmailQueue.plate == req.plate,
-            MissingEmailQueue.resolved == False,  # noqa: E712
-        )
+    resolved = csv_store.resolve_missing_email(
+        month=req.month,
+        plate=req.plate,
+        email=req.email,
+        resolved_by=req.actor,
     )
-    if not entry:
+    if not resolved:
         raise HTTPException(404, "No unresolved missing-email entry for that plate/month.")
 
-    entry.email = req.email
-    entry.resolved = True
-    entry.resolved_by = req.actor
-    entry.resolved_at = datetime.now(timezone.utc)
-
-    db.add(AuditLog(
+    csv_store.append_audit(
         action="email_resolved",
         month=req.month,
         actor=req.actor,
         details={"plate": req.plate, "email": req.email},
-    ))
-
-    await db.commit()
-
-    remaining = await db.scalar(
-        select(MissingEmailQueue).where(
-            MissingEmailQueue.month == req.month,
-            MissingEmailQueue.resolved == False,  # noqa: E712
-        )
     )
 
-    if not remaining:
-        history = await db.scalar(
-            select(DrawHistory).where(DrawHistory.month == req.month).order_by(DrawHistory.id.desc())
-        )
-        if history:
-            enriched = _enrich_winners_with_resolved_emails(
-                history.winners, await _load_resolved_emails(db, req.month)
-            )
+    if not csv_store.has_unresolved_missing_emails(req.month):
+        draw = csv_store.get_draw_by_month(req.month)
+        if draw:
+            resolved_map = csv_store.get_resolved_email_map(req.month)
+            enriched = [
+                {**w, "email": resolved_map.get(w["plate"], w.get("email"))}
+                for w in draw["winners"]
+            ]
             await send_winner_notifications(enriched, req.month)
 
     return {"status": "resolved", "plate": req.plate}
@@ -183,22 +152,8 @@ async def resolve_email(req: ResolveEmailRequest, db: AsyncSession = Depends(get
 
 def _verify_manager_code(code: str | None) -> None:
     if not code:
-        raise HTTPException(403, "This month has already been drawn. Manager code required to redraw.")
+        raise HTTPException(
+            403, "This month has already been drawn. Manager code required to redraw."
+        )
     if not hmac.compare_digest(code, settings.manager_code):
         raise HTTPException(403, "Invalid manager code.")
-
-
-def _enrich_winners_with_resolved_emails(
-    winners: list[dict], resolved: dict[str, str]
-) -> list[dict]:
-    return [{**w, "email": resolved.get(w["plate"], w.get("email"))} for w in winners]
-
-
-async def _load_resolved_emails(db: AsyncSession, month: str) -> dict[str, str]:
-    result = await db.execute(
-        select(MissingEmailQueue).where(
-            MissingEmailQueue.month == month,
-            MissingEmailQueue.resolved == True,  # noqa: E712
-        )
-    )
-    return {row.plate: row.email for row in result.scalars()}

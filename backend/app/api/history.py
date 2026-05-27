@@ -1,18 +1,17 @@
 """
-GET  /api/history           — list all draw records
-GET  /api/history/{month}   — single month draw record
-GET  /api/history/{month}/missing-emails — unresolved missing emails for a month
+GET  /api/history                        — list all draw records (newest first)
+GET  /api/history/{month}                — single month draw record
+GET  /api/history/{month}/missing-emails — missing-email queue for a month
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
 
-from app.db.database import get_db
-from app.db.models import DrawHistory, MissingEmailQueue
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from app.store import csv_store
 
 router = APIRouter()
 
@@ -25,7 +24,7 @@ class DrawSummary(BaseModel):
     num_winners: int
     pool_size: int
     is_redraw: bool
-    winners: list[dict]
+    winners: list[dict[str, Any]]
 
 
 class MissingEmailItem(BaseModel):
@@ -35,40 +34,34 @@ class MissingEmailItem(BaseModel):
 
 
 @router.get("/history", response_model=list[DrawSummary])
-async def list_history(db: AsyncSession = Depends(get_db)) -> list[DrawSummary]:
-    result = await db.execute(select(DrawHistory).order_by(DrawHistory.drawn_at.desc()))
-    return [_to_summary(row) for row in result.scalars()]
+async def list_history() -> list[DrawSummary]:
+    rows = csv_store.get_all_draws()
+    rows.sort(key=lambda r: r["drawn_at"], reverse=True)
+    return [_to_summary(r) for r in rows]
 
 
 @router.get("/history/{month}", response_model=DrawSummary)
-async def get_history(month: str, db: AsyncSession = Depends(get_db)) -> DrawSummary:
-    row = await db.scalar(
-        select(DrawHistory).where(DrawHistory.month == month).order_by(DrawHistory.id.desc())
-    )
+async def get_history(month: str) -> DrawSummary:
+    row = csv_store.get_draw_by_month(month)
     if not row:
         raise HTTPException(404, f"No draw record found for {month}.")
     return _to_summary(row)
 
 
 @router.get("/history/{month}/missing-emails", response_model=list[MissingEmailItem])
-async def get_missing_emails(month: str, db: AsyncSession = Depends(get_db)) -> list[MissingEmailItem]:
-    result = await db.execute(
-        select(MissingEmailQueue).where(MissingEmailQueue.month == month)
-    )
-    return [
-        MissingEmailItem(plate=r.plate, resolved=r.resolved, email=r.email)
-        for r in result.scalars()
-    ]
+async def get_missing_emails(month: str) -> list[MissingEmailItem]:
+    items = csv_store.get_missing_emails(month)
+    return [MissingEmailItem(**item) for item in items]
 
 
-def _to_summary(row: DrawHistory) -> DrawSummary:
+def _to_summary(row: dict) -> DrawSummary:
     return DrawSummary(
-        id=row.id,
-        month=row.month,
-        drawn_at=row.drawn_at.isoformat(),
-        drawn_by=row.drawn_by,
-        num_winners=row.num_winners,
-        pool_size=row.pool_size,
-        is_redraw=row.is_redraw,
-        winners=row.winners,
+        id=row["id"],
+        month=row["month"],
+        drawn_at=row["drawn_at"],
+        drawn_by=row["drawn_by"],
+        num_winners=row["num_winners"],
+        pool_size=row["pool_size"],
+        is_redraw=row["is_redraw"],
+        winners=row["winners"],
     )

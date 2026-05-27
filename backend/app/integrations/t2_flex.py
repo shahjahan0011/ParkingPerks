@@ -1,33 +1,41 @@
 """
-T2 Flex — citations and permit holders client.
+T2 Flex — SOAP web services client.
 
-Calls T2 Flex web service queries via HTTP Basic Auth.
-Two queries must be registered in T2 Flex Query Manager
-(see backend/t2flex_queries.sql for the SQL to paste in).
+Uses the ExecuteQuery() method on T2_Flex_Misc.asmx to run registered
+queries from T2 Flex Query Manager.
 
-Web service URL pattern:
-    GET {T2_FLEX_BASE_URL}/webservices/query
-        ?queryName=<name>
-        &format=json
-        [&PARAM=value ...]
-
-Response shape expected:
-    { "rows": [ {"COL": "val", ...}, ... ] }
+SOAP endpoint:
+    POST {T2_FLEX_WS_URL}
+    SOAPAction: http://www.t2systems.com/ExecuteQuery
+    Content-Type: text/xml; charset=utf-8
 
 Config (.env):
-    T2_FLEX_BASE_URL   — base URL of T2 Flex server, no trailing slash
-    T2_FLEX_USERNAME   — web services account username
-    T2_FLEX_PASSWORD   — web services account password
+    T2_FLEX_WS_URL               — full URL to T2_Flex_Misc.asmx
+    T2_FLEX_USERNAME / PASSWORD  — web services account
+    T2_FLEX_QUERY_PERMITS_UID    — UID of permits query in T2 Flex Query Manager
+    T2_FLEX_QUERY_CITATIONS_UID  — UID of citations query in T2 Flex Query Manager
 
-Stub mode:
-    USE_STUBS=true (default) loads from local test-data files.
-    Set USE_STUBS=false to hit the live T2 Flex web services.
+Stub mode (USE_STUBS=true):
+    Permits  — loaded from test-data/*.txt
+    Citations — returns EMPTY LIST (see note below)
+
+NOTE ON CITATIONS STUB:
+    The test-data Citations file is a UBC Vancouver export. The live T2 Flex
+    citations query filters CZL_UID_ZONE = 2001 (UBCO campus only). Using
+    Vancouver data in stub mode would wrongly disqualify UBCO parkers who
+    happened to have a citation at the Vancouver campus — exactly the
+    geographic bias this system must avoid.
+
+    Stub mode therefore returns zero citations (no disqualifications).
+    To test citation-disqualification logic, create a file named
+    test-data/Citations_UBCO.xls with real UBCO citation data.
 """
 
 from __future__ import annotations
 
 import logging
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import httpx
@@ -39,6 +47,88 @@ from app.integrations.base import Citation, CitationsAndPermitsClient, PermitHol
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# SOAP templates
+# ---------------------------------------------------------------------------
+
+_SOAP_ENVELOPE = """\
+<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope
+    xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+    xmlns:t2s="http://www.t2systems.com/">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <t2s:ExecuteQuery>
+      <t2s:version>1.0</t2s:version>
+      <t2s:username>{username}</t2s:username>
+      <t2s:password>{password}</t2s:password>
+      <t2s:queryUID>{query_uid}</t2s:queryUID>
+      <t2s:queryParameters>{params_xml}</t2s:queryParameters>
+    </t2s:ExecuteQuery>
+  </soapenv:Body>
+</soapenv:Envelope>"""
+
+_PARAM_ELEMENT = (
+    "<t2s:QueryParameter>"
+    "<t2s:Field>{field}</t2s:Field>"
+    "<t2s:Value>{value}</t2s:Value>"
+    "</t2s:QueryParameter>"
+)
+
+
+def _build_envelope(query_uid: int, params: dict[str, str] | None = None) -> str:
+    params_xml = "".join(
+        _PARAM_ELEMENT.format(field=k, value=v)
+        for k, v in (params or {}).items()
+    )
+    return _SOAP_ENVELOPE.format(
+        username=settings.t2_flex_username,
+        password=settings.t2_flex_password,
+        query_uid=query_uid,
+        params_xml=params_xml,
+    )
+
+
+def _parse_response(xml_text: str) -> list[dict]:
+    """
+    Extract rows from a T2 Flex ExecuteQuery SOAP response.
+
+    The result element contains CDATA with:
+        <QUERY_DATASET><RECORD><COL>val</COL>...</RECORD>...</QUERY_DATASET>
+    """
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        raise RuntimeError(f"T2 Flex returned non-XML: {xml_text[:200]}") from exc
+
+    result_el = root.find(".//{http://www.t2systems.com/}ExecuteQueryResult")
+    if result_el is None:
+        result_el = root.find(".//ExecuteQueryResult")
+
+    if result_el is None:
+        raise RuntimeError(f"ExecuteQueryResult not found in response: {xml_text[:400]}")
+
+    cdata = (result_el.text or "").strip()
+    if not cdata:
+        logger.warning("T2 Flex ExecuteQueryResult is empty")
+        return []
+
+    if "<T2ErrorList>" in cdata or "<ErrorNumber>" in cdata:
+        raise RuntimeError(f"T2 Flex returned error: {cdata[:400]}")
+
+    try:
+        dataset = ET.fromstring(cdata)
+    except ET.ParseError as exc:
+        raise RuntimeError(f"Could not parse QUERY_DATASET: {cdata[:200]}") from exc
+
+    rows = []
+    for record in dataset.findall("RECORD"):
+        row = {child.tag: (child.text or "").strip() for child in record}
+        rows.append(row)
+
+    logger.info("T2 Flex query returned %d records", len(rows))
+    return rows
+
 
 # ---------------------------------------------------------------------------
 # Client
@@ -48,7 +138,7 @@ class T2FlexClient(CitationsAndPermitsClient):
 
     async def fetch_citations(self, year: int, month: int) -> list[Citation]:
         if settings.use_stubs:
-            return _load_citations_from_file(year, month)
+            return _load_citations_stub(year, month)
         return await _fetch_citations_live(year, month)
 
     async def fetch_permits(self) -> list[PermitHolder]:
@@ -58,58 +148,46 @@ class T2FlexClient(CitationsAndPermitsClient):
 
 
 # ---------------------------------------------------------------------------
-# Live — web service calls
+# Live — SOAP calls
 # ---------------------------------------------------------------------------
 
-async def _call_query(query_name: str, params: dict[str, str] | None = None) -> list[dict]:
-    """
-    Call one named T2 Flex web service query and return the row list.
-    Uses Basic Auth. Raises httpx.HTTPStatusError on non-2xx.
-    """
-    base = settings.t2_flex_base_url.rstrip("/")
-    if not base:
+async def _call_query(query_uid: int, params: dict[str, str] | None = None) -> list[dict]:
+    ws_url = settings.t2_flex_ws_url.strip()
+    if not ws_url:
         raise RuntimeError(
-            "T2_FLEX_BASE_URL is not set in .env. "
-            "Add it before running with USE_STUBS=false."
+            "T2_FLEX_WS_URL is not set in .env. "
+            "It should point to T2_Flex_Misc.asmx, e.g. "
+            "https://ubcparking.t2flex.ca/PowerParkWS/T2_Flex_Misc.asmx"
         )
 
-    url = f"{base}/webservices/query"
-    query_params: dict[str, str] = {"queryName": query_name, "format": "json"}
-    if params:
-        query_params.update(params)
+    envelope = _build_envelope(query_uid, params)
+    headers = {
+        "Content-Type": "text/xml; charset=utf-8",
+        "SOAPAction": "http://www.t2systems.com/ExecuteQuery",
+    }
 
-    logger.info("T2 Flex → %s  params=%s", query_name, params)
+    logger.info("T2 Flex SOAP → queryUID=%d params=%s", query_uid, params)
 
     async with httpx.AsyncClient(
-        auth=(settings.t2_flex_username, settings.t2_flex_password),
         verify=settings.t2_flex_verify_ssl,
         timeout=settings.t2_flex_timeout,
     ) as client:
-        resp = await client.get(url, params=query_params)
+        resp = await client.post(ws_url, content=envelope.encode("utf-8"), headers=headers)
         resp.raise_for_status()
 
-    payload = resp.json()
-    rows = payload.get("rows", payload) if isinstance(payload, dict) else payload
-    logger.info("T2 Flex '%s' → %d rows", query_name, len(rows))
-    return rows
+    return _parse_response(resp.text)
 
 
 async def _fetch_permits_live() -> list[PermitHolder]:
     """
-    Fetch active permit holders from T2 Flex web services.
+    Fetch active permit holders from T2 Flex.
 
     The SQL query uses LISTAGG so multiple plates per person are returned as
-    a single comma-separated string (e.g. "674PRL,TC765L"). _expand_plates()
-    splits and normalises them — same helper used by the stub loader.
-
-    Plates come back as plain strings (e.g. "SK041H"), NOT in BC-PLATE-NA
-    format. normalise_permits_plate (uppercase + trim) is correct here.
-
-    BIKE permits: excluded in SQL via PNA.PNA_SERIES_PREFIX != 'BIKE'.
-    SERIES_PREFIX is returned by the query and stored on the holder for
-    reference, but the SQL-level filter is the authoritative exclusion.
+    a comma-separated string. _expand_plates() splits and normalises them.
+    Plates are plain strings (e.g. SK041H) — use normalise_permits_plate.
+    BIKE permits are excluded at the SQL level (PNA_SERIES_PREFIX != 'BIKE').
     """
-    rows = await _call_query(settings.t2_flex_query_permits)
+    rows = await _call_query(settings.t2_flex_query_permits_uid)
     holders: list[PermitHolder] = []
 
     for row in rows:
@@ -118,7 +196,7 @@ async def _fetch_permits_live() -> list[PermitHolder]:
         if not plates:
             continue
         holders.append(PermitHolder(
-            entity_uid=str(row.get("ENT_UID") or ""),
+            entity_uid=str(row.get("ENT_UID") or "").strip(),
             email=str(row.get("EMAIL_ADDRESS") or "").strip() or None,
             series_prefix=str(row.get("SERIES_PREFIX") or "").strip().upper(),
             permit_number=str(row.get("PERMIT_NUMBER") or "").strip(),
@@ -131,16 +209,14 @@ async def _fetch_permits_live() -> list[PermitHolder]:
 
 async def _fetch_citations_live(year: int, month: int) -> list[Citation]:
     """
-    Fetch citations for the given month from T2 Flex web services (UBCO zone).
+    Fetch UBCO-zone citations for the given month from T2 Flex.
 
-    CON_SNAP_VEH_PLATE_LICENSE is the plate as recorded at citation time —
-    no VEHICLE join needed. Plates come back as plain strings.
-
-    YEAR and MONTH are passed as plain integers to avoid T2 Flex Alpha-type
-    validation errors that reject hyphens in date strings.
+    The SQL filters CZL_UID_ZONE = 2001 (UBCO campus only).
+    CON_SNAP_VEH_PLATE_LICENSE is the plate as it appeared at citation time.
+    Live plates are plain strings — use normalise_permits_plate (uppercase + trim).
     """
     rows = await _call_query(
-        settings.t2_flex_query_citations,
+        settings.t2_flex_query_citations_uid,
         params={"YEAR": str(year), "MONTH": str(month)},
     )
 
@@ -158,26 +234,55 @@ async def _fetch_citations_live(year: int, month: int) -> list[Citation]:
 
 
 # ---------------------------------------------------------------------------
-# Stub loaders (unchanged — used when USE_STUBS=true)
+# Stub loaders
 # ---------------------------------------------------------------------------
 
-def _load_citations_from_file(year: int, month: int) -> list[Citation]:
+def _load_citations_stub(year: int, month: int) -> list[Citation]:
+    """
+    Stub citations loader.
+
+    The available test-data citations file is a UBC VANCOUVER export and must
+    NOT be used as UBCO stub data — it would wrongly disqualify UBCO parkers
+    with Vancouver citations (291 plates affected in the April 2026 sample).
+
+    We look for a UBCO-specific file first. If not found, we return empty
+    (no disqualifications in stub mode), which matches the expected live
+    behaviour where very few UBCO citations occur each month.
+
+    To test citation disqualification: place a file named
+    "Citations_UBCO.xls" or "Citations_UBCO.xlsx" in test-data/ containing
+    only UBCO campus citations.
+    """
     stub_dir = Path(settings.stub_data_dir)
+
+    # Only load a file explicitly labelled as UBCO to avoid the campus-mix bug
     candidates = (
-        sorted(stub_dir.glob("*Citation*.xls"))
-        + sorted(stub_dir.glob("*citation*.xls"))
-        + sorted(stub_dir.glob("*Citation*.xlsx"))
+        sorted(stub_dir.glob("*Citations_UBCO*.xls"))
+        + sorted(stub_dir.glob("*Citations_UBCO*.xlsx"))
+        + sorted(stub_dir.glob("*Citations_UBCO*.csv"))
     )
+
     if not candidates:
+        logger.warning(
+            "Citations stub: no UBCO-specific citations file found in %s. "
+            "Returning 0 citations. This is correct for UBCO-only scope. "
+            "To test citation disqualification, add test-data/Citations_UBCO.xls.",
+            stub_dir,
+        )
         return []
 
     path = candidates[0]
-    engine = "xlrd" if path.suffix.lower() == ".xls" else "openpyxl"
-    df = pd.read_excel(path, engine=engine, header=9)
-    df.columns = df.columns.str.strip()
+    logger.info("Citations stub: loading UBCO citations from %s", path)
 
+    engine = "xlrd" if path.suffix.lower() == ".xls" else "openpyxl"
+    try:
+        df = pd.read_excel(path, engine=engine, header=9)
+    except Exception:
+        df = pd.read_excel(path, engine=engine)
+
+    df.columns = df.columns.str.strip()
     plate_col = next(
-        (c for c in df.columns if "license #" in c.lower() or "licence #" in c.lower() or "license" in c.lower()),
+        (c for c in df.columns if "license" in c.lower() or "licence" in c.lower()),
         None,
     )
     if not plate_col:
@@ -209,6 +314,9 @@ def _load_permits_from_file() -> list[PermitHolder]:
 
     holders: list[PermitHolder] = []
     for _, row in df.iterrows():
+        series = str(row.get(col_series, "") or "").strip().upper()
+        if series in {"BIKE"}:
+            continue
         raw_plates = str(row.get(col_plates, "") or "").strip()
         plates = _expand_plates(raw_plates)
         if not plates:
@@ -216,7 +324,7 @@ def _load_permits_from_file() -> list[PermitHolder]:
         holders.append(PermitHolder(
             entity_uid=str(row.get(col_uid, "") or "").strip(),
             email=str(row.get(col_email, "") or "").strip() or None,
-            series_prefix=str(row.get(col_series, "") or "").strip().upper(),
+            series_prefix=series,
             permit_number=str(row.get(col_permit, "") or "").strip(),
             plates=plates,
         ))
@@ -225,9 +333,9 @@ def _load_permits_from_file() -> list[PermitHolder]:
 
 def _expand_plates(raw: str) -> list[str]:
     """
-    Handle both single-plate and multi-plate formats:
+    Handle both single-plate and multi-plate (LISTAGG comma-separated) formats:
       single: SK041H
-      multi:  "674PRL,TC765L"  (quoted comma-separated)
+      multi:  "674PRL,TC765L"
     """
     raw = raw.strip().strip('"')
     return [

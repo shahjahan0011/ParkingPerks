@@ -20,6 +20,7 @@ import type {
   DrawHistoryRecord,
   DrawResponse,
   MissingEmailItem,
+  UploadResponse,
 } from './types'
 
 const BASE = '/api'
@@ -89,5 +90,20 @@ export const api = {
 
   getMissingEmails(month: string): Promise<MissingEmailItem[]> {
     return request(`/history/${month}/missing-emails`)
+  },
+
+  /**
+   * Upload plate reads file. Uses multipart/form-data — do NOT set
+   * Content-Type here; the browser must set the boundary automatically.
+   */
+  async uploadReads(file: File): Promise<UploadResponse> {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE}/upload/reads`, { method: 'POST', body: form })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new ApiError(res.status, body.detail ?? res.statusText)
+    }
+    return res.json()
   },
 }

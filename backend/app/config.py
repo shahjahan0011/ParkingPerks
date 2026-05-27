@@ -4,28 +4,25 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Database
-    database_url: str = "postgresql+asyncpg://user:password@localhost:5432/parking_perks"
-
-    # Genetec
+    # Genetec (plate reads) — live client not yet implemented; use stub
     genetec_base_url: str = ""
     genetec_username: str = ""
     genetec_password: str = ""
 
-    # T2 Iris
+    # T2 Iris (payments) — live client not yet implemented; use stub
     t2_iris_base_url: str = ""
     t2_iris_api_key: str = ""
 
-    # T2 Flex — web services (Basic Auth, not OAuth2)
-    t2_flex_base_url: str = ""
+    # T2 Flex — SOAP web services (T2_Flex_Misc.asmx / ExecuteQuery method)
+    t2_flex_ws_url: str = ""
     t2_flex_username: str = ""
     t2_flex_password: str = ""
-    t2_flex_query_permits: str = "Parking Perks - List of active Permit Holders"
-    t2_flex_query_citations: str = "Parking Perks - Citations by Month"
+    t2_flex_query_permits_uid: int = 0
+    t2_flex_query_citations_uid: int = 0
     t2_flex_verify_ssl: bool = True
     t2_flex_timeout: float = 60.0
 
-    # Email
+    # Email (UBC Exchange/SMTP)
     smtp_host: str = "smtp.mail.ubc.ca"
     smtp_port: int = 587
     smtp_username: str = ""
@@ -40,14 +37,20 @@ class Settings(BaseSettings):
     num_winners: int = 1
     campus_timezone: str = "America/Vancouver"
 
-    # Scheduler
+    # Scheduler — monthly draw runs at draw_hour:draw_minute on draw_day_of_month
     draw_day_of_month: int = 1
     draw_hour: int = 9
     draw_minute: int = 0
 
-    # Stub mode — use local test-data files instead of live APIs
-    use_stubs: bool = True
+    # Stub flags (set to false individually as live APIs become available)
+    use_stubs: bool = True          # T2 Flex: citations + permits
+    use_stubs_reads: bool = True    # Genetec: plate reads
+    use_stubs_payments: bool = True # T2 Iris: payments
+
     stub_data_dir: str = "../test-data"
+
+    # Staff-uploaded plate reads land here; Genetec stub checks here first
+    uploads_dir: str = "./uploads"
 
     excluded_permit_series: list[str] = ["BIKE"]
 

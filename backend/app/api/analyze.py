@@ -3,24 +3,22 @@ POST /api/analyze
 
 Pulls data from all three systems for a given month, runs the
 qualification pipeline, and returns the qualifier list + processing summary.
-Does NOT run the draw — that is a separate step requiring manager intent.
+Does NOT run the draw - that is a separate step requiring manager intent.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.qualify import run_qualification
-from app.db.database import get_db
-from app.db.models import AuditLog
 from app.integrations.genetec import GenetecClient
 from app.integrations.t2_flex import T2FlexClient
 from app.integrations.t2_iris import T2IrisClient
+from app.store import csv_store
 
 router = APIRouter()
 
@@ -46,14 +44,14 @@ class QualifierOut(BaseModel):
 class AnalyzeResponse(BaseModel):
     month: str
     qualifiers: list[QualifierOut]
-    summary: dict
+    summary: dict[str, Any]
     missing_emails: list[str]
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
-async def analyze(req: AnalyzeRequest, db: AsyncSession = Depends(get_db)) -> AnalyzeResponse:
+async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     if not (1 <= req.month <= 12):
-        raise HTTPException(400, "month must be 1–12")
+        raise HTTPException(400, "month must be 1-12")
     if req.year < 2020:
         raise HTTPException(400, "year looks wrong")
 
@@ -70,13 +68,12 @@ async def analyze(req: AnalyzeRequest, db: AsyncSession = Depends(get_db)) -> An
 
     month_str = f"{req.year}-{req.month:02d}"
 
-    db.add(AuditLog(
+    csv_store.append_audit(
         action="analyze",
         month=month_str,
         actor=req.actor,
         details={"summary": summary},
-    ))
-    await db.commit()
+    )
 
     return AnalyzeResponse(
         month=month_str,
