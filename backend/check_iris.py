@@ -1,85 +1,65 @@
 """
-Quick diagnostic for T2 Iris live connection.
+T2 Iris — debug getTransactionByPurchasedDate failure.
+Tries multiple tokens, date ranges, and methods to isolate the issue.
 
 Usage:
-    python check_iris.py                        # uses token from .env
-    python check_iris.py <token>                # tests a specific token against TransactionDataService
-    python check_iris.py <token> info           # tests token against TransactionInfoService instead
-
-Examples:
-    python check_iris.py bIBFOSwj...
-    python check_iris.py bIBFOSwj... info
+    python check_iris.py
 """
-
+import logging
 import sys
-from datetime import datetime, timezone, timedelta
-
+from datetime import datetime
 from zeep import Client
+from zeep.wsse.username import UsernameToken
 from app.config import settings
 
-# Which WSDL to test
+# Enable zeep debug logging so we can see the raw SOAP request/response
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("zeep").setLevel(logging.DEBUG)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+
 BASE = settings.t2_iris_base_url.rstrip("/")
-WSDL_DATA = f"{BASE}/TransactionDataService?wsdl"
-WSDL_INFO = f"{BASE}/TransactionInfoService?wsdl"
+WSDL = f"{BASE}/TransactionInfoService?wsdl"
+wsse = UsernameToken(settings.t2_iris_username, settings.t2_iris_password)
+client = Client(WSDL, wsse=wsse)
 
-token = sys.argv[1] if len(sys.argv) > 1 else settings.t2_iris_token
-use_info_service = len(sys.argv) > 2 and sys.argv[2].lower() == "info"
-wsdl = WSDL_INFO if use_info_service else WSDL_DATA
+# All TransactionInfo tokens to try — add yours here
+TOKENS = [
+    settings.t2_iris_token,
+    # paste any other TransactionInfo tokens below:
+    # "OTHER_TOKEN_HERE",
+]
 
-print(f"=== T2 Iris Diagnostic ===")
-print(f"  Service : {'TransactionInfoService' if use_info_service else 'TransactionDataService'}")
-print(f"  WSDL    : {wsdl}")
-print(f"  Token   : {token[:8]}...")
-print()
+print("\n\n=== Testing getTransactionByPurchasedDate ===\n")
 
+for tok in TOKENS:
+    print(f"\n--- Token: {tok[:8]}... ---")
 
-def run():
-    print("--- Loading WSDL ---")
+    # Try 1: single day (Apr 15)
+    print("  1 day (Apr 15):")
     try:
-        client = Client(wsdl)
-        ops = list(client.service._binding._operations.keys())
-        print(f"  OK  Operations: {ops}")
-    except Exception as e:
-        print(f"  FAILED: {e}")
-        sys.exit(1)
-    print()
-
-    print("--- getLocations (token-only) ---")
-    try:
-        r = client.service.getLocations(token=token)
-        print(f"  OK  result={r}")
-    except Exception as e:
-        print(f"  FAILED: {e}")
-    print()
-
-    print("--- getTransactionTypes (token-only) ---")
-    try:
-        r = client.service.getTransactionTypes(token=token)
-        items = r if isinstance(r, list) else ([r] if r else [])
-        print(f"  OK  {len(items)} types")
-        for item in items:
-            print(f"       id={getattr(item,'id','?')}  name={getattr(item,'name','?')!r}")
-    except Exception as e:
-        print(f"  FAILED: {e}")
-    print()
-
-    print("--- getTransactionByUpdateDate (April 15 2026) ---")
-    from_dt = datetime(2026, 4, 15, 0, 0, 0)
-    to_dt   = datetime(2026, 4, 15, 23, 59, 59)
-    try:
-        r = client.service.getTransactionByUpdateDate(
-            token=token,
-            updateDateFrom=from_dt,
-            updateDateTo=to_dt,
+        r = client.service.getTransactionByPurchasedDate(
+            token=tok,
+            purchasedDateFrom=datetime(2026, 4, 15, 0, 0, 0),
+            purchasedDateTo=datetime(2026, 4, 15, 23, 59, 59),
         )
         rows = r if isinstance(r, list) else ([r] if r else [])
-        print(f"  OK  {len(rows)} rows")
-        for i, row in enumerate(rows[:5]):
-            plate   = getattr(row, "plateNumber", "?")
-            charged = getattr(row, "chargedAmount", "?")
-            print(f"       [{i+1}] plate={plate!r}  charged={charged!r}")
+        print(f"    OK: {len(rows)} rows")
+        for row in rows[:3]:
+            print(f"      plate={getattr(row,'plateNumber','?')!r}  charged={getattr(row,'chargedAmount','?')!r}")
     except Exception as e:
-        print(f"  FAILED: {e}")
+        print(f"    FAILED: {e}")
 
-
-run()
+print("\n\n=== Testing getTransactionBySettlementDate (alternative method) ===\n")
+print("  1 day (Apr 15):")
+try:
+    r = client.service.getTransactionBySettlementDate(
+        token=settings.t2_iris_token,
+        settlementDateFrom=datetime(2026, 4, 15, 0, 0, 0),
+        settlementDateTo=datetime(2026, 4, 15, 23, 59, 59),
+    )
+    rows = r if isinstance(r, list) else ([r] if r else [])
+    print(f"  OK: {len(rows)} rows")
+    for row in rows[:3]:
+        print(f"    plate={getattr(row,'plateNumber','?')!r}  charged={getattr(row,'chargedAmount','?')!r}")
+except Exception as e:
+    print(f"  FAILED: {e}")
