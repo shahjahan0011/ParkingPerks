@@ -1,48 +1,42 @@
 """
-Parking Perks — FastAPI application entry point.
+Parking Perks -- FastAPI application entry point.
 
 Run locally:
   cd backend
-  uvicorn app.main:app --reload
+  python -m uvicorn app.main:app
 
-API docs:
-  http://localhost:8000/docs
+Then open http://localhost:8000  (the full staff UI is served at /).
+API docs: http://localhost:8000/docs
+
+NOTE: There is intentionally NO automatic monthly draw. The workflow
+requires a staff member to export the plate reads report from Security Desk
+and upload it first, so the draw is always human-triggered from the UI.
 """
 
-from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from app.api.router import api_router
-from app.scheduler.monthly import start_scheduler, stop_scheduler
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    start_scheduler()
-    yield
-    stop_scheduler()
-
 
 app = FastAPI(
     title="Parking Perks API",
-    description="UBC Okanagan Parking Services — monthly qualifier draw automation",
-    version="1.0.0",
-    lifespan=lifespan,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    description="UBC Okanagan Parking Services -- monthly qualifier draw",
+    version="2.0.0",
 )
 
 app.include_router(api_router)
+
+_STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.get("/", include_in_schema=False)
+async def index() -> FileResponse:
+    return FileResponse(_STATIC_DIR / "index.html")
 
 
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+

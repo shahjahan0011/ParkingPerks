@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     t2_iris_username: str = ""       # Iris portal login email
     t2_iris_password: str = ""       # Iris portal password
     t2_iris_token: str = ""          # TransactionInfo token from Iris API - Read section
+    # 'version' method param. v1.2 is REQUIRED for plateNumber in responses
+    # (v1.0/empty -> plateNumber is None; v1.5 -> unparseable schema).
+    t2_iris_version: str = "v1.2"
 
     # T2 Flex -- SOAP web services (T2_Flex_Misc.asmx / ExecuteQuery method)
     t2_flex_ws_url: str = ""
@@ -41,14 +44,10 @@ class Settings(BaseSettings):
     num_winners: int = 1
     campus_timezone: str = "America/Vancouver"
 
-    # Scheduler -- monthly draw runs at draw_hour:draw_minute on draw_day_of_month
-    draw_day_of_month: int = 1
-    draw_hour: int = 9
-    draw_minute: int = 0
-
     # Stub flags (set to false individually as live APIs become available)
+    # NOTE: plate reads have no stub flag -- they always come from the
+    # manually exported Security Desk file (uploads/plate_reads.xlsx).
     use_stubs: bool = True          # T2 Flex: citations + permits
-    use_stubs_reads: bool = True    # Genetec: plate reads
     use_stubs_payments: bool = True # T2 Iris: payments
 
     stub_data_dir: str = "../test-data"

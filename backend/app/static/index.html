@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parking Perks — UBC Okanagan</title>
+<style>
+  :root {
+    --ubc: #002145; --ubc2: #0055b7; --gold: #f2a900;
+    --ok: #1a7f37; --warn: #9a6700; --err: #b42318;
+    --line: #dde3ea; --bg: #eef1f5; --card: #ffffff; --muted: #5b6470;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; background: var(--bg); color: #19212c; }
+
+  header { background: linear-gradient(100deg, #001a38, #00306b); color: #fff;
+           padding: 18px 30px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  header .logo { width: 38px; height: 38px; border-radius: 9px; background: var(--gold);
+                 color: var(--ubc); font-weight: 800; font-size: 17px;
+                 display: flex; align-items: center; justify-content: center; }
+  header h1 { font-size: 20px; font-weight: 650; letter-spacing: .01em; }
+  header .sub { color: #9fb4d4; font-size: 13px; margin-top: 1px; }
+  #chips { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 3px 11px; border-radius: 999px; background: #14365e; color: #c9d9ef; }
+  .chip.live { background: #0c4b20; color: #c9f0d4; }
+  .chip.stub { background: #6b5618; color: #f5e6b8; }
+  .chip.off  { background: #6e211c; color: #f7d2cd; }
+
+  #offline { display: none; background: var(--err); color: #fff; text-align: center;
+             padding: 8px; font-size: 14px; }
+
+  main { max-width: 1060px; margin: 26px auto 90px; padding: 0 20px; display: grid; gap: 16px; }
+
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+            padding: 22px 24px; transition: opacity .25s; }
+  section.locked { opacity: .45; pointer-events: none; }
+  section.locked .lockhint { pointer-events: auto; }
+
+  .stephead { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .stepnum { width: 26px; height: 26px; border-radius: 50%; flex: none;
+             background: var(--ubc); color: #fff; font-size: 13px; font-weight: 700;
+             display: inline-flex; align-items: center; justify-content: center; }
+  .stepnum.done { background: var(--ok); }
+  .stephead h2 { font-size: 16px; color: var(--ubc); font-weight: 650; }
+  .stephead .lockhint { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+  .stepbody { margin-top: 14px; }
+
+  label { font-size: 12.5px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input, select { font: inherit; padding: 8px 11px; border: 1px solid var(--line);
+                  border-radius: 7px; background: #fff; }
+  input:focus { outline: 2px solid var(--ubc2); border-color: transparent; }
+  button { font: inherit; font-weight: 600; padding: 9px 20px; border: 0; border-radius: 7px;
+           background: var(--ubc2); color: #fff; cursor: pointer; }
+  button:hover { background: #00468f; }
+  button:disabled { background: #a9bbd1; cursor: default; }
+  button.secondary { background: #e8edf3; color: var(--ubc); }
+  button.secondary:hover { background: #dbe4ee; }
+  button.gold { background: var(--gold); color: var(--ubc); font-weight: 700; }
+  button.gold:hover { background: #dda00b; }
+
+  .row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .help { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+
+  .alert { border-radius: 8px; padding: 11px 14px; font-size: 13.5px; margin-top: 12px;
+           white-space: pre-wrap; }
+  .alert.err  { background: #fdecea; color: var(--err); border: 1px solid #f5c6c0; }
+  .alert.ok   { background: #e8f5ec; color: var(--ok);  border: 1px solid #bfe3cb; }
+  .alert.warn { background: #fdf6e3; color: var(--warn); border: 1px solid #eedb9c; }
+
+  .drop { border: 2px dashed #c3cdd9; border-radius: 10px; padding: 22px; text-align: center;
+          color: var(--muted); cursor: pointer; transition: all .15s; background: #fafbfd; }
+  .drop:hover, .drop.over { border-color: var(--ubc2); color: var(--ubc2); background: #f0f6ff; }
+  .drop .big { font-size: 15px; font-weight: 600; color: var(--ubc); }
+  .drop .small { font-size: 12px; margin-top: 6px; line-height: 1.6; }
+  .drop .small code { background: #e8edf3; padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
+  .filemeta { font-size: 13.5px; margin-top: 10px; }
+  .filemeta.good { color: var(--ok); }
+  .filemeta.bad { color: var(--err); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 10px; margin: 16px 0 6px; }
+  .stat { background: #f7f9fc; border: 1px solid var(--line); border-radius: 9px; padding: 11px 13px; }
+  .stat .v { font-size: 22px; font-weight: 700; color: var(--ubc); }
+  .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+  .stat.final { background: #002145; border-color: #002145; }
+  .stat.final .v { color: var(--gold); }
+  .stat.final .k { color: #9fb4d4; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+       position: sticky; top: 0; background: #fff; }
+  .tablewrap { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 9px; margin-top: 10px; }
+  .badge { font-size: 11px; padding: 2px 9px; border-radius: 999px; background: #dbe7f5; color: var(--ubc); font-weight: 600; }
+  .badge.payment { background: #fdeccc; color: #7a5200; }
+
+  .filters { display: flex; gap: 8px; }
+  .fbtn { font-size: 12.5px; padding: 6px 13px; border-radius: 999px; background: #e8edf3;
+          color: var(--ubc); border: 0; font-weight: 600; cursor: pointer; }
+  .fbtn.active { background: var(--ubc); color: #fff; }
+
+  .winner { background: linear-gradient(100deg, #00224a, #003a7c); color: #fff; border-radius: 12px;
+            padding: 18px 22px; margin-top: 12px; display: flex; gap: 20px; align-items: center;
+            flex-wrap: wrap; animation: reveal .5s ease-out; }
+  @keyframes reveal { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+  .winner .plate { font-size: 28px; font-weight: 800; letter-spacing: .08em; color: var(--gold);
+                   background: #ffffff14; border: 1px solid #ffffff2e; border-radius: 8px; padding: 4px 16px; }
+  .winner .meta { font-size: 13.5px; color: #c7d6ec; }
+  .winner .meta strong { color: #fff; }
+  .winner input { border: 0; }
+
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff;
+          border-top-color: transparent; border-radius: 50%; animation: r .7s linear infinite;
+          vertical-align: -2px; margin-right: 8px; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  .muted { color: var(--muted); font-size: 13px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">P</div>
+  <div>
+    <h1>Parking Perks</h1>
+    <div class="sub">UBC Okanagan Parking Services — monthly reward draw</div>
+  </div>
+  <div id="chips"></div>
+</header>
+<div id="offline">Can't reach the Parking Perks server — is the black "Parking Perks" window still open?</div>
+
+<main>
+
+  <!-- STEP 1 -->
+  <section id="step1">
+    <div class="stephead">
+      <span class="stepnum" id="n1">1</span>
+      <h2>Month &amp; plate reads</h2>
+      <span class="lockhint" id="readstate"></span>
+    </div>
+    <div class="stepbody">
+      <div class="row">
+        <div>
+          <label>Draw month (the month being rewarded)</label>
+          <input type="month" id="month">
+        </div>
+        <div>
+          <label>Your name (recorded with every action)</label>
+          <input type="text" id="actor" placeholder="e.g. Jahan" size="16">
+        </div>
+      </div>
+
+      <div style="margin-top:18px">
+        <div class="drop" id="drop">
+          <div class="big">Drop the plate reads export here, or click to choose</div>
+          <div class="small">
+            How to make it: <code>Security Desk</code> → <code>Reads Report</code> →
+            <code>Select All Cameras</code> → <code>Deselect LPR Cars</code> →
+            <code>No Images</code> → <code>Generate and Save Report</code> (.xlsx)
+          </div>
+        </div>
+        <input type="file" id="fileinput" accept=".xlsx" class="hidden">
+        <div id="filemeta" class="filemeta muted">Checking for an uploaded file…</div>
+        <div id="upmsg"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section id="step2" class="locked">
+    <div class="stephead">
+      <span class="stepnum" id="n2">2</span>
+      <h2>Build the qualifier pool</h2>
+      <span class="lockhint" id="lock2">Upload a reads file covering the selected month first</span>
+    </div>
+    <div class="stepbody">
+      <div class="row">
+        <div><label>Min. separate days on campus</label><input type="number" id="minvisits" min="1" max="31" style="width:95px"></div>
+        <div><label>Min. hours per day</label><input type="number" id="minhours" min="0.25" step="0.25" style="width:95px"></div>
+        <div class="grow"></div>
+        <button id="btn-analyze" data-label="Build pool">Build pool</button>
+      </div>
+      <div class="help">Pulls permits &amp; citations from T2 Flex and the month's payments from
+        T2 Iris (one call per day — takes about a minute), then applies the qualification rules.</div>
+      <div id="anmsg"></div>
+      <div id="anresult" class="hidden">
+        <div class="cards" id="ancards"></div>
+        <div id="anwarnings"></div>
+        <div class="row" style="margin-top:10px">
+          <div class="filters" id="trackfilters">
+            <button class="fbtn active" data-f="">All</button>
+            <button class="fbtn" data-f="permit">Permit</button>
+            <button class="fbtn" data-f="payment">Payment</button>
+          </div>
+          <input type="search" id="poolsearch" placeholder="Search plate / permit / email…" class="grow">
+          <button class="secondary" id="btn-csv">Download CSV</button>
+        </div>
+        <div class="tablewrap"><table id="pooltable">
+          <thead><tr><th>#</th><th>Plate</th><th>Track</th><th>Email</th><th>Permit</th><th>Days</th><th>Avg hrs</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <div class="muted" id="poolcount" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section id="step3" class="locked">
+    <div class="stephead">
+      <span class="stepnum" id="n3">3</span>
+      <h2>Draw the winners</h2>
+      <span class="lockhint" id="lock3">Build the pool first</span>
+    </div>
+    <div class="stepbody">
+      <div class="row">
+        <div><label>Number of winners</label><input type="number" id="numwinners" min="1" max="50" value="1" style="width:95px"></div>
+        <div id="redrawbox" class="hidden">
+          <label>Manager code — this month was already drawn</label>
+          <input type="password" id="managercode" size="18">
+        </div>
+        <div class="grow"></div>
+        <button id="btn-draw" class="gold" data-label="Draw winners">Draw winners</button>
+      </div>
+      <div class="help" id="drawcontext"></div>
+      <div class="help">The draw re-checks every data source at the moment you click, uses
+        cryptographically secure randomness, and is recorded permanently. Winner emails go out
+        automatically when email is configured; winners without an email on file are held until
+        you add one below.</div>
+      <div id="drmsg"></div>
+      <div id="winners"></div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section>
+    <div class="stephead"><h2 style="margin-left:2px">Draw history</h2></div>
+    <div class="stepbody" id="history"><span class="muted">Loading…</span></div>
+  </section>
+
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let POOL = [];           // qualifiers from the last successful analyze
+let POOL_MONTH = null;   // the month POOL belongs to
+let MONTHS_COVERED = [];
+let TRACK_FILTER = "";
+
+// ---------- helpers ----------
+function msg(el, kind, text) {
+  el.innerHTML = text ? `<div class="alert ${kind}">${esc(text)}</div>` : "";
+}
+function busy(btn, on, label) {
+  btn.disabled = on;
+  btn.innerHTML = on ? `<span class="spin"></span>${esc(label)}` : btn.dataset.label;
+}
+async function api(path, opts) {
+  let r;
+  try {
+    r = await fetch(path, opts);
+    $("offline").style.display = "none";
+  } catch (e) {
+    $("offline").style.display = "block";
+    throw new Error("Can't reach the server.");
+  }
+  let body = null;
+  try { body = await r.json(); } catch {}
+  if (!r.ok) throw new Error((body && body.detail) || `${r.status} ${r.statusText}`);
+  return body;
+}
+function selectedYM() {
+  const v = $("month").value;
+  if (!v) return null;
+  const [y, m] = v.split("-").map(Number);
+  return { year: y, month: m, str: v };
+}
+
+// ---------- step gating ----------
+function readsCoverSelectedMonth() {
+  const ym = selectedYM();
+  return !!(ym && MONTHS_COVERED.includes(ym.str));
+}
+function updateGates() {
+  const ym = selectedYM();
+  const readsOk = readsCoverSelectedMonth();
+  const poolOk = POOL.length > 0 && ym && POOL_MONTH === ym.str;
+
+  $("step2").classList.toggle("locked", !readsOk);
+  $("lock2").textContent = readsOk ? "" : "Upload a reads file covering the selected month first";
+  $("n1").classList.toggle("done", readsOk);
+  $("n1").textContent = readsOk ? "✓" : "1";
+
+  $("step3").classList.toggle("locked", !poolOk);
+  $("lock3").textContent = poolOk ? "" : "Build the pool first";
+  $("n2").classList.toggle("done", poolOk);
+  $("n2").textContent = poolOk ? "✓" : "2";
+
+  $("drawcontext").textContent = poolOk
+    ? `Drawing from the pool of ${POOL.length.toLocaleString()} qualifiers for ${POOL_MONTH}.`
+    : "";
+}
+
+// ---------- boot ----------
+async function boot() {
+  $("actor").value = localStorage.getItem("pp_actor") || "";
+  $("actor").addEventListener("change", () => localStorage.setItem("pp_actor", $("actor").value.trim()));
+  try {
+    const s = await api("/api/status");
+    const sm = s.suggested_month;
+    $("month").value = `${sm.year}-${String(sm.month).padStart(2, "0")}`;
+    $("minvisits").value = s.defaults.min_visits;
+    $("minhours").value = s.defaults.min_hours;
+    $("numwinners").value = s.defaults.num_winners;
+    const chip = (label, cls) => `<span class="chip ${cls}">${esc(label)}</span>`;
+    $("chips").innerHTML =
+      chip(`Payments ${s.sources.payments.live ? "LIVE" : "stub"}`, s.sources.payments.live ? "live" : "stub") +
+      chip(`Permits/Citations ${s.sources.citations.live ? "LIVE" : "stub"}`, s.sources.citations.live ? "live" : "stub") +
+      chip(`Email ${s.email_configured ? "on" : "off"}`, s.email_configured ? "live" : "off");
+  } catch (e) { /* offline banner already shown */ }
+
+  await refreshReadsInfo();
+  refreshHistory();
+  refreshRedrawBox();
+  updateGates();
+
+  $("month").addEventListener("change", () => {
+    // A different month invalidates the built pool.
+    const ym = selectedYM();
+    if (ym && POOL_MONTH && POOL_MONTH !== ym.str) {
+      POOL = []; POOL_MONTH = null;
+      $("anresult").classList.add("hidden");
+      msg($("anmsg"), "", "");
+      $("winners").innerHTML = "";
+      msg($("drmsg"), "", "");
+      $("n3").classList.remove("done");
+      $("n3").textContent = "3";
+    }
+    checkMonthCoverage();
+    refreshRedrawBox();
+    updateGates();
+  });
+}
+
+function checkMonthCoverage() {
+  const ym = selectedYM();
+  if (!ym || !MONTHS_COVERED.length) { msg($("upmsg"), "", ""); return; }
+  if (!MONTHS_COVERED.includes(ym.str)) {
+    msg($("upmsg"), "warn",
+      `The uploaded reads file covers ${MONTHS_COVERED.join(", ")} but you selected ${ym.str}. ` +
+      `Upload the right month's export, or change the month.`);
+  } else {
+    msg($("upmsg"), "", "");
+  }
+}
+
+async function refreshReadsInfo() {
+  try {
+    const info = await api("/api/upload/reads");
+    if (!info.uploaded) {
+      $("filemeta").className = "filemeta bad";
+      $("filemeta").textContent = "No reads file uploaded yet.";
+      MONTHS_COVERED = [];
+    } else if (info.error) {
+      $("filemeta").className = "filemeta bad";
+      $("filemeta").textContent = info.error;
+      MONTHS_COVERED = [];
+    } else {
+      MONTHS_COVERED = info.months_covered || [];
+      $("filemeta").className = "filemeta good";
+      $("filemeta").innerHTML =
+        `✓ Current file: <strong>${Number(info.total_reads).toLocaleString()}</strong> reads, ` +
+        `${esc(info.date_min)} → ${esc(info.date_max)} (${(info.size_bytes / 1048576).toFixed(1)} MB)`;
+    }
+  } catch (e) {
+    $("filemeta").className = "filemeta bad";
+    $("filemeta").textContent = "Could not check the uploaded file: " + e.message;
+  }
+  checkMonthCoverage();
+  updateGates();
+}
+
+// ---------- upload ----------
+const drop = $("drop"), fileinput = $("fileinput");
+drop.addEventListener("click", () => fileinput.click());
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => {
+  e.preventDefault(); drop.classList.remove("over");
+  if (e.dataTransfer.files.length) uploadReads(e.dataTransfer.files[0]);
+});
+fileinput.addEventListener("change", () => { if (fileinput.files.length) uploadReads(fileinput.files[0]); });
+
+async function uploadReads(file) {
+  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+    return msg($("upmsg"), "err", "The reads export must be an .xlsx file.");
+  }
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    const s = Math.round((Date.now() - t0) / 1000);
+    msg($("upmsg"), "warn", `Uploading and checking "${file.name}"… ${s}s — don't close the page.`);
+  }, 1000);
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const r = await api("/api/upload/reads", { method: "POST", body: fd });
+    clearInterval(tick);
+    msg($("upmsg"), "ok",
+      `Uploaded in ${Math.round((Date.now() - t0) / 1000)}s: ` +
+      `${Number(r.total_reads).toLocaleString()} reads, ${r.date_min} → ${r.date_max}.`);
+    await refreshReadsInfo();
+  } catch (e) {
+    clearInterval(tick);
+    msg($("upmsg"), "err", e.message);
+  }
+}
+
+// ---------- analyze ----------
+$("btn-analyze").addEventListener("click", async () => {
+  const ym = selectedYM();
+  if (!ym) return msg($("anmsg"), "err", "Pick a month first.");
+  msg($("anmsg"), "", "");
+  $("anresult").classList.add("hidden");
+  POOL = []; POOL_MONTH = null;
+  updateGates();
+  busy($("btn-analyze"), true, "Fetching sources & qualifying — about a minute…");
+  try {
+    const r = await api("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        year: ym.year, month: ym.month,
+        min_visits: Number($("minvisits").value),
+        min_hours: Number($("minhours").value),
+        actor: $("actor").value.trim() || "unknown",
+      }),
+    });
+    POOL = r.qualifiers;
+    POOL_MONTH = r.month;
+    renderAnalysis(r);
+  } catch (e) {
+    msg($("anmsg"), "err", e.message);
+  } finally {
+    busy($("btn-analyze"), false);
+    updateGates();
+  }
+});
+
+function renderAnalysis(r) {
+  const s = r.summary;
+  const stat = (v, k, cls = "") =>
+    `<div class="stat ${cls}"><div class="v">${v}</div><div class="k">${esc(k)}</div></div>`;
+  $("ancards").innerHTML =
+    stat(Number(s.read_rows).toLocaleString(), "camera reads") +
+    stat(Number(s.total_plates).toLocaleString(), "unique plates") +
+    stat(s.coverage_days, "days covered") +
+    stat(Number(s.payment_plates).toLocaleString(), "payments") +
+    stat(s.stage2_permit, "permit pool") +
+    stat(s.stage2_payment, "payment pool") +
+    stat(s.removed_citations, "cited — removed") +
+    stat(Number(s.final).toLocaleString(), "final pool", "final");
+  $("anwarnings").innerHTML = (r.warnings || [])
+    .map(w => `<div class="alert warn">${esc(w)}</div>`).join("");
+  renderPool();
+  $("anresult").classList.remove("hidden");
+  msg($("anmsg"), "ok", `Pool built for ${r.month}: ${Number(s.final).toLocaleString()} qualifiers.`);
+}
+
+function renderPool() {
+  const q = $("poolsearch").value.trim().toUpperCase();
+  const rows = POOL.filter(p =>
+    (!TRACK_FILTER || p.track === TRACK_FILTER) &&
+    (!q || p.plate.includes(q) ||
+      (p.permit_number || "").toUpperCase().includes(q) ||
+      (p.email || "").toUpperCase().includes(q)));
+  $("pooltable").querySelector("tbody").innerHTML = rows.slice(0, 500).map((p, i) => `
+    <tr><td>${i + 1}</td><td><strong>${esc(p.plate)}</strong></td>
+    <td><span class="badge ${esc(p.track)}">${esc(p.track)}</span></td>
+    <td>${esc(p.email || "—")}</td><td>${esc(p.permit_number || "—")}</td>
+    <td>${p.qualifying_days ?? "—"}</td><td>${p.avg_hours ?? "—"}</td></tr>`).join("");
+  $("poolcount").textContent =
+    `${rows.length.toLocaleString()} of ${POOL.length.toLocaleString()} qualifiers shown` +
+    (rows.length > 500 ? " (first 500 — use search to narrow down)" : "");
+}
+$("poolsearch").addEventListener("input", renderPool);
+$("trackfilters").addEventListener("click", e => {
+  if (!e.target.dataset) return;
+  const f = e.target.dataset.f;
+  if (f === undefined) return;
+  TRACK_FILTER = f;
+  document.querySelectorAll(".fbtn").forEach(b => b.classList.toggle("active", b.dataset.f === f));
+  renderPool();
+});
+
+$("btn-csv").addEventListener("click", () => {
+  const head = ["plate", "track", "email", "permit_number", "qualifying_days", "avg_hours"];
+  const lines = [head.join(",")].concat(POOL.map(p =>
+    head.map(k => `"${String(p[k] ?? "").replace(/"/g, '""')}"`).join(",")));
+  const blob = new Blob([lines.join("\r\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `parking_perks_pool_${POOL_MONTH}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ---------- draw ----------
+async function refreshRedrawBox() {
+  const ym = selectedYM();
+  if (!ym) return;
+  try {
+    await api(`/api/history/${ym.str}`);
+    $("redrawbox").classList.remove("hidden");
+  } catch {
+    $("redrawbox").classList.add("hidden");
+    $("managercode").value = "";
+  }
+}
+
+$("btn-draw").addEventListener("click", async () => {
+  const ym = selectedYM();
+  const actor = $("actor").value.trim();
+  if (!actor) return msg($("drmsg"), "err", "Enter your name in step 1 — every draw is logged.");
+  const n = Number($("numwinners").value);
+  if (!confirm(`Draw ${n} winner${n > 1 ? "s" : ""} for ${ym.str}? This is recorded permanently.`)) return;
+
+  msg($("drmsg"), "", "");
+  $("winners").innerHTML = "";
+  busy($("btn-draw"), true, "Re-checking sources & drawing…");
+  try {
+    const r = await api("/api/draw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        year: ym.year, month: ym.month,
+        num_winners: n,
+        min_visits: Number($("minvisits").value),
+        min_hours: Number($("minhours").value),
+        actor,
+        manager_code: $("managercode").value || null,
+      }),
+    });
+    renderWinners(r);
+    refreshHistory();
+    refreshRedrawBox();
+    $("n3").classList.add("done"); $("n3").textContent = "✓";
+  } catch (e) {
+    msg($("drmsg"), "err", e.message);
+  } finally {
+    busy($("btn-draw"), false);
+  }
+});
+
+function renderWinners(r) {
+  msg($("drmsg"), "ok",
+    `${r.is_redraw ? "RE-DRAW" : "Draw"} complete for ${r.month} — pool of ` +
+    `${Number(r.pool_size).toLocaleString()}. Emails: ${r.email_status}`);
+  $("winners").innerHTML = r.winners.map((w, i) => `
+    <div class="winner" style="animation-delay:${i * 0.15}s">
+      <span class="plate">${esc(w.plate)}</span>
+      <span class="meta">
+        <strong>${esc(w.track === "permit" ? "Permit holder" : "Pay-per-use parker")}</strong><br>
+        ${esc(w.name || "")} ${esc(w.email || "no email on file")}
+        ${w.permit_number ? `· permit ${esc(w.permit_number)}` : ""}
+      </span>
+      ${!w.email ? `
+        <span style="margin-left:auto">
+          <input type="email" placeholder="winner's email" id="fix-${esc(w.plate)}" size="22">
+          <button class="secondary" onclick="resolveEmail('${esc(w.plate)}')">Save email</button>
+        </span>` : ""}
+    </div>`).join("");
+}
+
+window.resolveEmail = async function (plate) {
+  const ym = selectedYM();
+  const email = $(`fix-${plate}`).value.trim();
+  if (!email) return;
+  try {
+    const r = await api("/api/draw/resolve-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: ym.str, plate, email, actor: $("actor").value.trim() || "unknown" }),
+    });
+    msg($("drmsg"), "ok", `Email saved for ${plate}.` +
+      (r.email_status && r.email_status !== "pending" ? ` ${r.email_status}` : ""));
+    $(`fix-${plate}`).disabled = true;
+  } catch (e) {
+    msg($("drmsg"), "err", e.message);
+  }
+};
+
+// ---------- history ----------
+async function refreshHistory() {
+  try {
+    const rows = await api("/api/history");
+    if (!rows.length) { $("history").innerHTML = '<span class="muted">No draws yet.</span>'; return; }
+    $("history").innerHTML = `<div class="tablewrap"><table>
+      <thead><tr><th>Month</th><th>Drawn at (UTC)</th><th>By</th><th>Pool</th><th>Winners</th><th></th></tr></thead>
+      <tbody>${rows.map(d => `
+        <tr><td><strong>${esc(d.month)}</strong></td>
+        <td>${esc(d.drawn_at.slice(0, 16).replace("T", " "))}</td>
+        <td>${esc(d.drawn_by)}</td><td>${Number(d.pool_size).toLocaleString()}</td>
+        <td>${d.winners.map(w => `<strong>${esc(w.plate)}</strong>`).join(", ")}</td>
+        <td>${d.is_redraw ? '<span class="badge payment">redraw</span>' : ""}</td></tr>`).join("")}
+      </tbody></table></div>`;
+  } catch (e) {
+    $("history").innerHTML = `<span class="muted">Could not load history: ${esc(e.message)}</span>`;
+  }
+}
+
+boot();
+</script>
+</body>
+</html>

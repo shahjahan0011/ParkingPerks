@@ -17,15 +17,38 @@ def normalise_reads_plate(raw: str | None) -> str:
 
 def normalise_payments_plate(raw: str | None) -> str:
     """
-    T2 Iris payments: plates are wrapped in Excel formula syntax: ="SK041H"
-    Strip the leading =" and the trailing " — nothing else.
+    T2 Iris payments (CSV export): plates are wrapped in Excel formula
+    syntax: ="SK041H". Strip the leading =" and the trailing ", then apply
+    the same typed-input cleanup as the live API path.
     """
     if not raw:
         return ""
     s = str(raw).strip().upper()
     if s.startswith('="') and s.endswith('"'):
-        return s[2:-1]
-    return s.lstrip('="').rstrip('"')
+        s = s[2:-1]
+    else:
+        s = s.lstrip('="').rstrip('"')
+    return _strip_typed_input_noise(s)
+
+
+def normalise_iris_plate(raw: str | None) -> str:
+    """
+    T2 Iris payments (live SOAP API): plates are typed by drivers at pay
+    stations / phone apps, so the same physical plate the camera reads as
+    "AB123C" may arrive as "ab 123c" or "AB-123C". Uppercase, trim, and
+    remove internal spaces/hyphens so typed input matches camera reads.
+
+    NOTE: this does NOT strip province codes -- that rule applies only to
+    the citations format (see the SK041H bug).
+    """
+    if not raw:
+        return ""
+    return _strip_typed_input_noise(str(raw).strip().upper())
+
+
+def _strip_typed_input_noise(s: str) -> str:
+    """Remove characters drivers type but cameras never emit."""
+    return s.replace(" ", "").replace("-", "").replace(".", "")
 
 
 def normalise_citations_plate(raw: str | None) -> str:
