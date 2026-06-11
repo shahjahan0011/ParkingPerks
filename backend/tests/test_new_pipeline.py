@@ -199,8 +199,10 @@ class TestIrisNormaliser:
 def client(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from app.config import settings
-    from app.store import csv_store
+    from app.store import csv_store, reads_db
     from app.main import app
+
+    monkeypatch.setattr(reads_db, "_db_path", lambda: tmp_path / "reads.db")
 
     stub_dir = tmp_path / "stub"
     uploads_dir = tmp_path / "uploads"
@@ -248,7 +250,7 @@ class TestEndToEnd:
         # No reads uploaded yet -> analyze fails with a clear message
         r = client.post("/api/analyze", json={"year": 2026, "month": 4, "min_visits": 3, "actor": "test"})
         assert r.status_code == 422
-        assert "No plate reads file" in r.json()["detail"]
+        assert "No plate reads available" in r.json()["detail"]
 
         # Upload the reads export
         r = client.post(

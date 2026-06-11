@@ -22,6 +22,7 @@ from app.core.draw import secure_draw
 from app.core.qualify import run_qualification
 from app.core.sources import SourceError, fetch_all_sources
 from app.email.notify import send_winner_notifications
+from app.email.sender import email_is_configured
 from app.store import csv_store
 
 logger = logging.getLogger(__name__)
@@ -130,13 +131,13 @@ async def draw(req: DrawRequest) -> DrawResponse:
     for plate in missing:
         csv_store.add_missing_email(month_str, plate)
 
-    email_status = "skipped: SMTP not configured"
+    email_status = "skipped: email not configured"
     if missing:
         email_status = (
             f"held: {len(missing)} winner(s) have no email on file -- "
             "resolve below, then emails go out"
         )
-    elif settings.smtp_username and settings.smtp_password:
+    elif email_is_configured():
         try:
             await send_winner_notifications(winners, month_str)
             email_status = f"sent to {len(winners)} winner(s)"
@@ -180,7 +181,7 @@ async def resolve_email(req: ResolveEmailRequest) -> dict:
     email_status = "pending"
     if not csv_store.has_unresolved_missing_emails(req.month):
         draw_row = csv_store.get_draw_by_month(req.month)
-        if draw_row and settings.smtp_username and settings.smtp_password:
+        if draw_row and email_is_configured():
             resolved_map = csv_store.get_resolved_email_map(req.month)
             enriched = [
                 {**w, "email": resolved_map.get(w["plate"], w.get("email"))}
@@ -193,7 +194,7 @@ async def resolve_email(req: ResolveEmailRequest) -> dict:
                 logger.exception("Winner notification emails failed")
                 email_status = f"FAILED to send ({exc}) -- notify winners manually"
         elif draw_row:
-            email_status = "all emails resolved; SMTP not configured, notify manually"
+            email_status = "all emails resolved; email not configured, notify manually"
 
     return {"status": "resolved", "plate": req.plate, "email_status": email_status}
 

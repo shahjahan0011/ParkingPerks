@@ -233,6 +233,34 @@ async def _fetch_citations_live(year: int, month: int) -> list[Citation]:
     return [Citation(plate=p) for p in plates]
 
 
+async def fetch_customer_by_plate(plate: str) -> dict | None:
+    """
+    Look up the customer attached to a plate via T2 Flex query 4726
+    (parameter: PLATELICENSE, one plate per call).
+
+    Returns {name, email, primary_id, subclassification, active_permit}
+    or None when no customer record exists.
+    """
+    rows = await _call_query(
+        settings.t2_flex_query_customer_uid,
+        params={"PLATELICENSE": plate},
+    )
+
+    for row in rows:
+        name = str(row.get("ENT_DISPLAY_NAME") or "").strip()
+        email = str(row.get("COE_EMAIL_ADDRESS") or "").strip()
+        if not name and not email:
+            continue
+        return {
+            "name": name,
+            "email": email,
+            "primary_id": str(row.get("ENT_PRIMARY_ID") or "").strip(),
+            "subclassification": str(row.get("SUBCLASSIFICATION") or "").strip(),
+            "active_permit": str(row.get("ACTIVE_PERMIT") or "").strip(),
+        }
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Stub loaders
 # ---------------------------------------------------------------------------

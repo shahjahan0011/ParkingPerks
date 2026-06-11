@@ -360,24 +360,30 @@ function checkMonthCoverage() {
 async function refreshReadsInfo() {
   try {
     const info = await api("/api/upload/reads");
-    if (!info.uploaded) {
-      $("filemeta").className = "filemeta bad";
-      $("filemeta").textContent = "No reads file uploaded yet.";
-      MONTHS_COVERED = [];
-    } else if (info.error) {
-      $("filemeta").className = "filemeta bad";
-      $("filemeta").textContent = info.error;
-      MONTHS_COVERED = [];
+    const feed = info.feed || { rows: 0, months_covered: [] };
+    const fileMonths = (info.uploaded && !info.error) ? (info.months_covered || []) : [];
+    MONTHS_COVERED = [...new Set([...(feed.months_covered || []), ...fileMonths])].sort();
+
+    const parts = [];
+    if (feed.rows > 0) {
+      parts.push(`✓ Live camera feed: <strong>${Number(feed.rows).toLocaleString()}</strong> reads ` +
+        `(${esc(feed.first?.slice(0, 10))} → ${esc(feed.last?.slice(0, 10))}, ` +
+        `last received ${esc(feed.last_received || "?")})`);
     } else {
-      MONTHS_COVERED = info.months_covered || [];
-      $("filemeta").className = "filemeta good";
-      $("filemeta").innerHTML =
-        `✓ Current file: <strong>${Number(info.total_reads).toLocaleString()}</strong> reads, ` +
-        `${esc(info.date_min)} → ${esc(info.date_max)} (${(info.size_bytes / 1048576).toFixed(1)} MB)`;
+      parts.push(`Live camera feed: no data yet — using uploaded files only.`);
     }
+    if (info.uploaded && info.error) {
+      parts.push(`Uploaded file: ${esc(info.error)}`);
+    } else if (info.uploaded) {
+      parts.push(`Uploaded file: ${Number(info.total_reads).toLocaleString()} reads, ` +
+        `${esc(info.date_min)} → ${esc(info.date_max)} (${(info.size_bytes / 1048576).toFixed(1)} MB)`);
+    }
+    $("filemeta").className = "filemeta " + (MONTHS_COVERED.length ? "good" : "bad");
+    $("filemeta").innerHTML = parts.join("<br>");
   } catch (e) {
+    MONTHS_COVERED = [];
     $("filemeta").className = "filemeta bad";
-    $("filemeta").textContent = "Could not check the uploaded file: " + e.message;
+    $("filemeta").textContent = "Could not check reads sources: " + e.message;
   }
   checkMonthCoverage();
   updateGates();

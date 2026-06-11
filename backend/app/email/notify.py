@@ -1,19 +1,16 @@
 """
-Winner notification emails via UBC SMTP (Exchange).
+Winner notification emails (used by MANUAL draws from the web UI only --
+the automated monthly run emails the manager, never the winners).
 
-Sends one email per winner. If the winner has no email (payment-track
-without a permit record), the draw endpoint queues them in MissingEmailQueue
-instead of calling this function.
+Routed through the pluggable sender (gmail / smtp -- see sender.py).
 """
 
 from __future__ import annotations
 
 import asyncio
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from app.config import settings
+from app.email.sender import send_email
 
 
 async def send_winner_notifications(winners: list[dict], month_label: str) -> None:
@@ -22,11 +19,9 @@ async def send_winner_notifications(winners: list[dict], month_label: str) -> No
         email = winner.get("email")
         if not email:
             continue
-        # smtplib is synchronous blocking I/O — run it in a thread so we
-        # don't block the asyncio event loop.
         await asyncio.to_thread(
-            _send,
-            to=email,
+            send_email,
+            to=[email],
             subject=f"Congratulations — Parking Perks Winner ({month_label})",
             body=_build_body(winner, month_label),
         )
@@ -57,18 +52,3 @@ Best regards,
 UBC Okanagan Parking Services
 {settings.email_from}
 """
-
-
-def _send(to: str, subject: str, body: str) -> None:
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"{settings.email_from_name} <{settings.email_from}>"
-    msg["To"]      = to
-
-    msg.attach(MIMEText(body, "plain"))
-
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(settings.smtp_username, settings.smtp_password)
-        server.sendmail(settings.email_from, [to], msg.as_string())

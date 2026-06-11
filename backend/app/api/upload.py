@@ -104,9 +104,12 @@ async def upload_reads(file: UploadFile = File(...)) -> dict:
 
 @router.get("/upload/reads")
 async def reads_info() -> dict:
+    from app.store import reads_db
+
+    feed = reads_db.feed_stats()
     dest = _dest()
     if not dest.exists():
-        return {"uploaded": False}
+        return {"uploaded": False, "feed": feed}
 
     meta = _load_meta(dest)
     if meta is None:
@@ -120,6 +123,7 @@ async def reads_info() -> dict:
 
     return {
         "uploaded": True,
+        "feed": feed,
         "size_bytes": dest.stat().st_size,
         "total_reads": meta["total_reads"],
         "date_min": meta["date_min"],

@@ -26,16 +26,35 @@ class Settings(BaseSettings):
     t2_flex_password: str = ""
     t2_flex_query_permits_uid: int = 0
     t2_flex_query_citations_uid: int = 0
+    t2_flex_query_customer_uid: int = 4726  # customer lookup by PLATELICENSE
     t2_flex_verify_ssl: bool = True
     t2_flex_timeout: float = 60.0
 
-    # Email (UBC Exchange/SMTP)
+    # Genetec Data Exporter ingest (OAuth2 client-credentials)
+    # Generate long random values and mirror them in the exporter's
+    # Authorization panel (Client ID / Client secret).
+    ingest_client_id: str = ""
+    ingest_client_secret: str = ""
+    # Date format selected in the Data Exporter config ("Date format" dropdown)
+    genetec_date_format: str = "MM/dd/yyyy"  # or yyyy-MM-dd / dd/MM/yyyy
+
+    # Email -- backend: "gmail" (OAuth2 refresh token), "smtp", or "none"
+    email_backend: str = "none"
+    gmail_client_id: str = ""
+    gmail_client_secret: str = ""
+    gmail_refresh_token: str = ""
+    gmail_sender: str = ""
+    # SMTP fallback (UBC Exchange)
     smtp_host: str = "smtp.mail.ubc.ca"
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
     email_from: str = "parking.perks@ubc.ca"
     email_from_name: str = "UBC Parking Services"
+
+    # Monthly automated run
+    report_recipients: str = "jeff.joyce@ubc.ca,jahan.shah@ubc.ca"
+    min_coverage_days: int = 26   # reads must cover at least this many days of the month
 
     # Application
     manager_code: str = "UBCO-PERKS-2025"

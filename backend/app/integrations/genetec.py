@@ -79,14 +79,48 @@ class ReadsFileInfo:
 
 class GenetecClient(PlateReadsClient):
     async def fetch_reads(self, year: int, month: int) -> list[PlateRead]:
+        """
+        Two possible sources, best coverage wins:
+          1. The live Data Exporter feed (SQLite reads.db) -- normal path.
+          2. A manually uploaded Security Desk export -- fallback when the
+             feed was down for part of the month.
+        """
+        from app.store import reads_db
+
+        db_days = reads_db.month_days_covered(year, month)
+
+        file_days = 0
         path = _find_reads_file()
-        if path is None:
+        df = None
+        if path is not None:
+            try:
+                df = _parse_reads_file(path)
+                file_days = int(
+                    df[(df["ts"].dt.year == year) & (df["ts"].dt.month == month)]
+                    ["ts"].dt.date.nunique()
+                )
+            except ReadsFileError:
+                df = None
+
+        if db_days == 0 and file_days == 0:
             raise ReadsFileError(
-                "No plate reads file has been uploaded. Export it from "
-                "Security Desk (Reads Report > all cameras, no LPR cars, "
-                "no images) and upload it in step 1."
+                f"No plate reads available for {year}-{month:02d}. The live "
+                "camera feed has no data for that month and no usable file "
+                "has been uploaded. Check the Data Exporter, or upload a "
+                "Security Desk export (Reads Report > all cameras, no LPR "
+                "cars, no images)."
             )
-        df = _parse_reads_file(path)
+
+        if db_days >= file_days:
+            logger.info("Reads source: live feed (%d days vs file %d days)",
+                        db_days, file_days)
+            return [
+                PlateRead(plate=plate, timestamp=ts)
+                for plate, ts in reads_db.month_reads(year, month)
+            ]
+
+        logger.info("Reads source: uploaded file (%d days vs feed %d days)",
+                    file_days, db_days)
         return _reads_for_month(df, year, month, source=path.name)
 
 

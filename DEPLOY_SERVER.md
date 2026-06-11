@@ -1,0 +1,150 @@
+# Parking Perks — Server Deployment Guide (UBCO-SPARKP01)
+
+Everything to turn the server into a fully automated monthly draw machine.
+Work through the sections in order. Each one is independent — if you get
+stuck, the previous sections keep working.
+
+---
+
+## Overview
+
+```
+Genetec Data Exporter ──HTTPS POST (OAuth2)──► IIS (443)
+                                                 │  /parkingperks/* → 127.0.0.1:8000
+                                                 ▼
+                                   Parking Perks app (always on)
+                                   ├── /api/ingest/* ← reads land in data/reads.db
+                                   └── web UI (manual draws, fallback upload)
+
+Task Scheduler (daily 06:30) ──► monthly_run.bat
+    └── exits instantly if last month is already drawn+reported
+    └── otherwise: coverage gate → T2 Flex + T2 Iris → qualify → enrich (4726)
+        → draw NUM_WINNERS → save → email Jeff + Jahan (CSV attached)
+        → delete that month's reads from reads.db
+```
+
+---
+
+## 1. Get the code + environment onto the server
+
+1. Copy the whole `ParkingPerks` folder to the server (e.g. `C:\ParkingPerks`),
+   or `git clone` it there (branch `automate`).
+2. Copy `backend\.env` from your machine to the server's `backend\.env`
+   (it is gitignored — it will NOT come along with a clone).
+3. Double-click `server_app.bat` once. First run creates the environment and
+   installs everything (a few minutes). When it says uvicorn is running,
+   browse to `http://localhost:8000` on the server — the UI should load.
+   Leave it running for now (Ctrl+C stops it).
+
+## 2. IIS reverse proxy rule (ask your colleague — 2 minutes)
+
+The same pattern as his `/genetec/*` rule. In IIS Manager (with ARR +
+URL Rewrite, which his setup already uses):
+
+- Site: the one bound to `ubco-sparkp01.ead.ubc.ca:443`
+- Add an Inbound URL Rewrite rule:
+  - Pattern: `^parkingperks/(.*)`
+  - Action: Rewrite → `http://127.0.0.1:8000/{R:1}`
+- Verify from any browser:
+  `https://ubco-sparkp01.ead.ubc.ca/parkingperks/health` → `{"status":"ok"}`
+
+The app itself stays bound to 127.0.0.1 — never directly exposed.
+
+## 3. Configure the Data Exporter (Config Tool, like your colleague's)
+
+Add a new endpoint next to his:
+
+| Field | Value |
+|---|---|
+| Endpoint name | `Parking Perks` |
+| Server URL | `https://ubco-sparkp01.ead.ubc.ca/parkingperks/api/ingest/reads` |
+| Export format | `JSON` |
+| What to export | **Reads only** (untick Hits and everything under it) |
+| Export images | **OFF** |
+| Date format | `yyyy-MM-dd` if available, else `MM/dd/yyyy` |
+| Critical | **tick Reads** (queues + redelivers if our endpoint is down) |
+| Authorization mode | `ClientCredentials` |
+| Token URL | `https://ubco-sparkp01.ead.ubc.ca/parkingperks/api/ingest/token` |
+| Client ID | the `INGEST_CLIENT_ID` value from `backend\.env` |
+| Client secret | the `INGEST_CLIENT_SECRET` value from `backend\.env` |
+| Scope | leave empty |
+
+IMPORTANT: if you pick a date format other than `MM/dd/yyyy`, set the same
+value in `backend\.env` → `GENETEC_DATE_FORMAT=`.
+
+**Verify:** within a few minutes of saving, reads should appear. On the
+server: `https://localhost:8000/api/status` → `sources.reads.feed.rows`
+should be climbing, `last_received` recent. (Or check the web UI step 1 —
+it shows the live feed line.)
+
+## 4. Gmail for the report emails (one-time, ~10 minutes, on your laptop)
+
+1. Create/choose the sender Google account (e.g. `ubco.parking.perks@gmail.com`).
+2. Follow the instructions at the top of `backend\gmail_auth_setup.py`
+   (Google Cloud project → enable Gmail API → consent screen with the sender
+   as Test User → Desktop-app OAuth client).
+3. Run `python gmail_auth_setup.py`, sign in as the sender, approve.
+4. Paste the printed lines into the SERVER's `backend\.env`
+   (`EMAIL_BACKEND=gmail`, `GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN/SENDER`).
+5. Test from the server:
+   `backend\.venv\Scripts\python -c "from app.email.sender import send_email; send_email(['jahan.shah@ubc.ca'],'Parking Perks test','It works.')"`
+
+Recipients of the monthly report are `REPORT_RECIPIENTS` in `.env`
+(currently Jeff + you). Winner emails are NEVER sent automatically.
+
+## 5. Task Scheduler (two tasks)
+
+Run these in an **Administrator** Command Prompt (adjust `C:\ParkingPerks`
+if you put it elsewhere):
+
+```bat
+rem Always-on app (web UI + reads ingest) - starts at boot, restarts if it dies
+schtasks /Create /TN "ParkingPerks Server" /TR "C:\ParkingPerks\server_app.bat" ^
+  /SC ONSTART /RU SYSTEM /RL HIGHEST /F
+
+rem Monthly draw - checks DAILY at 06:30, only acts when needed
+schtasks /Create /TN "ParkingPerks Monthly Draw" /TR "C:\ParkingPerks\monthly_run.bat" ^
+  /SC DAILY /ST 06:30 /RU SYSTEM /RL HIGHEST /F
+```
+
+Then in Task Scheduler GUI, open each task's Settings tab and tick
+"If the task fails, restart every 1 minute, up to 3 times" for the server
+task. Start the server task once manually:
+`schtasks /Run /TN "ParkingPerks Server"`
+
+Why daily, not monthly: each run first checks "is last month drawn AND
+reported?" — if yes it exits in under a second. So a failure on the 1st
+(VPN down, feed gap, Iris hiccup) emails you an alert and retries
+automatically on the 2nd, 3rd, ... No partial-data draw can ever happen
+(coverage gate: `MIN_COVERAGE_DAYS` in `.env`).
+
+## 6. Things you can change later (all one-line .env edits)
+
+| Setting | Meaning |
+|---|---|
+| `NUM_WINNERS=1` | winners per month (or one-off: `monthly_run.bat --winners 3`) |
+| `REPORT_RECIPIENTS=` | who gets the monthly report |
+| `MIN_COVERAGE_DAYS=26` | minimum days of reads before a draw is allowed |
+| `MIN_VISITS=10` / `MIN_HOURS=1.0` | qualification thresholds |
+
+## 7. Manual overrides
+
+```bat
+cd C:\ParkingPerks\backend
+.venv\Scripts\python monthly_run.py --month 2026-06          rem run a specific month
+.venv\Scripts\python monthly_run.py --winners 3              rem one-off winner count
+.venv\Scripts\python monthly_run.py --resend-report          rem re-email last report
+```
+
+The web UI at `http://localhost:8000` (on the server) still does everything
+manually: review pools, draw, redraw with the manager code, upload a
+Security Desk .xlsx if the feed had a gap (the source with the most days of
+coverage wins automatically).
+
+## Files on the server worth knowing
+
+- `backend\data\reads.db` — live plate reads + customer-lookup cache
+  (auto-pruned after each month's report goes out)
+- `backend\data\draws.csv`, `audit.csv` — permanent draw + audit history
+- `backend\data\qualifiers_YYYY-MM.csv` — the attachment sent each month
+- `backend\data\monthly_run.log` — every automated run's log

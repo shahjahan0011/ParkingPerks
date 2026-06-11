@@ -174,6 +174,20 @@ def append_audit(action: str, month: str, actor: str, details: dict) -> None:
             writer.writerows(rows)
 
 
+def has_audit(action: str, month: str) -> bool:
+    """True if an audit event with this action exists for this month.
+    Used by the monthly runner to track 'report_sent' separately from the
+    draw itself (a failed email must not cause a re-draw)."""
+    path = _audit_path()
+    if not path.exists():
+        return False
+    with _lock, open(path, newline="", encoding="utf-8") as f:
+        return any(
+            r.get("action") == action and r.get("month") == month
+            for r in csv.DictReader(f)
+        )
+
+
 # ---------------------------------------------------------------------------
 # Missing emails queue
 # ---------------------------------------------------------------------------

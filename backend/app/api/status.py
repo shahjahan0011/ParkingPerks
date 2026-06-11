@@ -12,13 +12,17 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from app.config import settings
+from app.email.sender import email_is_configured as _email_configured
 
 router = APIRouter()
 
 
 @router.get("/status")
 async def status() -> dict:
+    from app.store import reads_db
+
     reads_file = Path(settings.uploads_dir) / "plate_reads.xlsx"
+    feed = reads_db.feed_stats()
 
     now = datetime.now()
     prev = (now.replace(day=1) - timedelta(days=1))
@@ -26,7 +30,8 @@ async def status() -> dict:
     return {
         "sources": {
             "reads": {
-                "mode": "manual upload (Security Desk export)",
+                "mode": "live feed (Data Exporter) with manual upload fallback",
+                "feed": feed,
                 "uploaded": reads_file.exists(),
                 "uploaded_at": (
                     datetime.fromtimestamp(reads_file.stat().st_mtime).isoformat(timespec="seconds")
@@ -47,7 +52,7 @@ async def status() -> dict:
                 "live": not settings.use_stubs,
             },
         },
-        "email_configured": bool(settings.smtp_username and settings.smtp_password),
+        "email_configured": _email_configured(),
         "defaults": {
             "min_visits": settings.min_visits,
             "min_hours": settings.min_hours,
