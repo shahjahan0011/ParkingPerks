@@ -79,6 +79,11 @@ def qualifiers_csv_path(month_str: str) -> Path:
 
 async def run(year: int, month: int, num_winners: int, resend_only: bool) -> int:
     month_str = f"{year}-{month:02d}"
+
+    # Step 0 -- every run (daily): pull new Genetec report emails into
+    # reads.db, so data accumulates continuously and gaps surface early.
+    pull_failed = _pull_mail_reports()
+
     existing_draw = csv_store.get_draw_by_month(month_str)
     report_sent = csv_store.has_audit(REPORT_SENT_ACTION, month_str)
 
@@ -95,6 +100,14 @@ async def run(year: int, month: int, num_winners: int, resend_only: bool) -> int
 
     # ---- Full run -----------------------------------------------------------
     logger.info("Starting full run for %s", month_str)
+
+    if pull_failed:
+        msg = (f"Could not pull the daily reads-report emails from Gmail before "
+               f"the {month_str} draw. The draw was NOT run (the reads data "
+               "may be incomplete). This will retry tomorrow.")
+        logger.error(msg)
+        alert(f"{month_str}: Gmail report pull failed", msg)
+        return 1
 
     # Coverage gate: never draw on a partial month of reads.
     days = reads_db.month_days_covered(year, month)
@@ -216,6 +229,23 @@ def _send_report_for_existing(month_str: str, draw_row: dict) -> int:
     _cleanup_reads(year, month, month_str)
     logger.info("Report re-sent for %s", month_str)
     return 0
+
+
+def _pull_mail_reports() -> bool:
+    """Ingest new daily report emails. Returns True if the pull FAILED
+    (auth/connectivity) -- per-message failures are retried next run and do
+    not count as a pull failure."""
+    from app.integrations.mail_reports import pull_reads_reports
+
+    if settings.email_backend != "gmail":
+        logger.info("Mail pull skipped: EMAIL_BACKEND is not gmail")
+        return False
+    try:
+        pull_reads_reports()
+        return False
+    except Exception as exc:
+        logger.error("Mail pull failed: %s", exc)
+        return True
 
 
 def _cleanup_reads(year: int, month: int, month_str: str) -> None:

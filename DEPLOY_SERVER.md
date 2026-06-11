@@ -9,18 +9,23 @@ stuck, the previous sections keep working.
 ## Overview
 
 ```
-Genetec Data Exporter ──HTTPS POST (OAuth2)──► IIS (443)
-                                                 │  /parkingperks/* → 127.0.0.1:8000
-                                                 ▼
-                                   Parking Perks app (always on)
-                                   ├── /api/ingest/* ← reads land in data/reads.db
-                                   └── web UI (manual draws, fallback upload)
-
+Genetec scheduled report (daily ~12am, "last day", Excel, no images)
+        │ email with .xlsx attachment
+        ▼
+Gmail mailbox (the Parking Perks account)
+        ▲ pulled daily by monthly_run via Gmail API; parsed into data/reads.db
+        │
 Task Scheduler (daily 06:30) ──► monthly_run.bat
-    └── exits instantly if last month is already drawn+reported
+    └── step 0: pull new report emails → reads.db (every day)
+    └── exits if last month is already drawn+reported
     └── otherwise: coverage gate → T2 Flex + T2 Iris → qualify → enrich (4726)
         → draw NUM_WINNERS → save → email Jeff + Jahan (CSV attached)
         → delete that month's reads from reads.db
+
+IIS (443) /parkingperks/* → 127.0.0.1:8000 → always-on app
+    └── web UI (manual draws, redraws, fallback .xlsx upload, /api/status)
+    └── /api/ingest/* (dormant Data Exporter receiver -- not used; the
+        exporter's 20 reads/sec licence cap made the emailed report safer)
 ```
 
 ---
@@ -50,36 +55,40 @@ URL Rewrite, which his setup already uses):
 
 The app itself stays bound to 127.0.0.1 — never directly exposed.
 
-## 3. Configure the Data Exporter (Config Tool, like your colleague's)
+## 3. Schedule the daily reads report in Genetec
 
-Add a new endpoint next to his:
+(The Data Exporter push was abandoned: its 20 reads/sec licence cap silently
+drops reads at busy times. The emailed daily report has no such limit.)
 
-| Field | Value |
-|---|---|
-| Endpoint name | `Parking Perks` |
-| Server URL | `https://ubco-sparkp01.ead.ubc.ca/parkingperks/api/ingest/reads` |
-| Export format | `JSON` |
-| What to export | **Reads only** (untick Hits and everything under it) |
-| Export images | **OFF** |
-| Date format | `yyyy-MM-dd` if available, else `MM/dd/yyyy` |
-| Critical | **tick Reads** (queues + redelivers if our endpoint is down) |
-| Authorization mode | `ClientCredentials` |
-| Token URL | `https://ubco-sparkp01.ead.ubc.ca/parkingperks/api/ingest/token` |
-| Client ID | the `INGEST_CLIENT_ID` value from `backend\.env` |
-| Client secret | the `INGEST_CLIENT_SECRET` value from `backend\.env` |
-| Scope | leave empty |
+In Security Desk / Config Tool, set up the scheduled report task:
 
-IMPORTANT: if you pick a date format other than `MM/dd/yyyy`, set the same
-value in `backend\.env` → `GENETEC_DATE_FORMAT=`.
+- Report: Reads Report — **all cameras, deselect LPR cars, NO images**
+- Event timestamp: relative range, **"During the last 1 day"**
+- Schedule: **daily at 12:00 AM**
+- Export format: **Excel (.xlsx)**
+- Report name: `DailyReadsReport-ParkingPerks` (the email subject must
+  contain this — it's what `GMAIL_REPORT_QUERY` in `.env` matches)
+- Email destination: **the Parking Perks Gmail address** (the same account
+  set up in step 4) — NOT your UBC inbox
 
-**Verify:** within a few minutes of saving, reads should appear. On the
-server: `https://localhost:8000/api/status` → `sources.reads.feed.rows`
-should be climbing, `last_received` recent. (Or check the web UI step 1 —
-it shows the live feed line.)
+If you rename the report, update `GMAIL_REPORT_QUERY` in `backend\.env`
+to match the new subject.
 
-## 4. Gmail for the report emails (one-time, ~10 minutes, on your laptop)
+**Verify (after step 4 + 5 are done):** the morning after the first
+scheduled report, check `https://ubco-sparkp01.ead.ubc.ca/parkingperks/api/status`
+→ `sources.reads.feed.rows` > 0 and `months_covered` shows the current
+month. Each processed email gets the Gmail label `pperks-processed`.
+You can also trigger a pull manually any time:
+`backend\.venv\Scripts\python monthly_run.py` (it pulls mail first, then
+exits if there's nothing to draw).
 
-1. Create/choose the sender Google account (e.g. `ubco.parking.perks@gmail.com`).
+## 4. Gmail (one-time, ~10 minutes, on your laptop)
+
+This one account does BOTH jobs: it RECEIVES the daily Genetec report
+emails, and it SENDS the monthly manager report (the single gmail.modify
+scope covers reading, labelling, and sending).
+
+1. Create/choose the Google account (e.g. `ubco.parking.perks@gmail.com`).
 2. Follow the instructions at the top of `backend\gmail_auth_setup.py`
    (Google Cloud project → enable Gmail API → consent screen with the sender
    as Test User → Desktop-app OAuth client).

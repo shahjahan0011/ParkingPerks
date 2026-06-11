@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     gmail_client_secret: str = ""
     gmail_refresh_token: str = ""
     gmail_sender: str = ""
+    # Gmail search that finds the daily Genetec reads-report emails
+    gmail_report_query: str = 'subject:"DailyReadsReport-ParkingPerks" has:attachment'
     # SMTP fallback (UBC Exchange)
     smtp_host: str = "smtp.mail.ubc.ca"
     smtp_port: int = 587

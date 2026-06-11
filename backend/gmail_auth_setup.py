@@ -31,7 +31,9 @@ import httpx
 
 PORT = 8765
 REDIRECT = f"http://localhost:{PORT}/"
-SCOPE = "https://www.googleapis.com/auth/gmail.send"
+# gmail.modify covers sending the reports AND reading/labelling the daily
+# Genetec reads-report emails that arrive in this mailbox.
+SCOPE = "https://www.googleapis.com/auth/gmail.modify"
 
 client_id = input("Paste the OAuth Client ID: ").strip()
 client_secret = input("Paste the OAuth Client secret: ").strip()
